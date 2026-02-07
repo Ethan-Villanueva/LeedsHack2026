@@ -21,6 +21,8 @@ Commands:
   /blocks       List all blocks
   /switch <id>  Switch to a block
   /delete <id>  Delete a block
+  /graphs       List all graphs
+  /switch-graph <id>  Switch to a graph
   /clear        Clear conversation history
   /help         Show this help
   /exit         Exit
@@ -73,6 +75,10 @@ def main():
                 
                 elif cmd == "/blocks":
                     graph_data = manager.export_graph()
+                    if not graph_data:
+                        print("\nBlocks:")
+                        print("  (no active graph)")
+                        continue
                     print("\nBlocks:")
                     for block_id, block_data in graph_data["blocks"].items():
                         print(f"  {block_id}: {block_data['title']}")
@@ -84,6 +90,22 @@ def main():
                         print(summary)
                     except IndexError:
                         print("Usage: /switch <block_id>")
+
+                elif cmd == "/graphs":
+                    graphs = manager.list_graphs()
+                    print("\nGraphs:")
+                    if not graphs:
+                        print("  (none)")
+                    for graph_id, title in graphs:
+                        print(f"  {graph_id}: {title}")
+
+                elif cmd == "/switch-graph":
+                    try:
+                        graph_id = user_input.split()[1]
+                        summary = manager.switch_graph(graph_id)
+                        print(summary)
+                    except IndexError:
+                        print("Usage: /switch-graph <graph_id>")
                 
                 elif cmd == "/delete":
                     try:
@@ -97,7 +119,8 @@ def main():
                 
                 elif cmd == "/clear":
                     storage.clear()
-                    manager.graph = storage.load()
+                    manager.mindmap = storage.load()
+                    manager.graph = manager.mindmap.get_current_graph()
                     print("[OK] Cleared")
                 
                 elif cmd == "/exit":
@@ -109,7 +132,7 @@ def main():
             
             else:
                 # Regular conversation
-                if not manager.graph.root_block_id:
+                if not manager.graph or not manager.graph.root_block_id:
                     # No conversation started yet
                     response = manager.start_new_conversation(user_input)
                 else:
