@@ -6,7 +6,7 @@ Simple, local, easy to debug and inspect.
 import json
 import os
 from pathlib import Path
-from models import ConversationGraph
+from models import ConversationGraph, Mindmap
 
 
 class JSONStorage:
@@ -22,34 +22,40 @@ class JSONStorage:
         self.file_path = Path(file_path)
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def save(self, graph: ConversationGraph) -> None:
+    def save(self, mindmap: Mindmap) -> None:
         """
-        Save conversation graph to JSON file.
+        Save mindmap to JSON file.
         
         Args:
-            graph: Graph to save
+            mindmap: Mindmap to save
         """
-        data = graph.to_dict()
+        data = mindmap.to_dict()
         
         with open(self.file_path, "w") as f:
             json.dump(data, f, indent=2)
         
         print(f"[SAVED] {self.file_path}")
 
-    def load(self) -> ConversationGraph:
+    def load(self) -> Mindmap:
         """
         Load conversation graph from JSON file.
         
         Returns:
-            Loaded ConversationGraph, or empty graph if file doesn't exist
+            Loaded Mindmap, or empty mindmap if file doesn't exist
         """
         if not self.file_path.exists():
-            return ConversationGraph()
+            return Mindmap()
         
         with open(self.file_path, "r") as f:
             data = json.load(f)
         
-        return ConversationGraph.from_dict(data)
+        if "graphs" in data:
+            return Mindmap.from_dict(data)
+
+        graph = ConversationGraph.from_dict(data)
+        mindmap = Mindmap()
+        mindmap.add_graph(graph)
+        return mindmap
 
     def clear(self) -> None:
         """Delete the storage file."""
