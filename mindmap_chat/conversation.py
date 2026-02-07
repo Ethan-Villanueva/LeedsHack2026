@@ -6,7 +6,7 @@ Ties together all modules for the core functionality.
 from typing import Optional
 from llm.base import LLMClient
 from llm import prompts
-from models import ConversationGraph, ConversationMessage, Block
+from models import ConversationGraph, ConversationMessage, Block, Mindmap
 from core import (
     detect_intent_shift,
     create_root_block,
@@ -32,7 +32,8 @@ class ConversationManager:
         """
         self.llm = llm_client
         self.storage = storage
-        self.graph = storage.load()
+        self.mindmap = storage.load()
+        self.graph = self.mindmap.get_current_graph()
 
     def start_new_conversation(self, user_message: str) -> str:
         """
@@ -44,11 +45,12 @@ class ConversationManager:
         Returns:
             Assistant response
         """
-        # Create root block
+        # Create new graph + root block
+        self.graph = ConversationGraph()
         root_block = create_root_block(self.llm, user_message)
-        self.graph.root_block_id = root_block.block_id
-        self.graph.current_block_id = root_block.block_id
         self.graph.add_block(root_block)
+        self.graph.current_block_id = root_block.block_id
+        self.mindmap.add_graph(self.graph)
         
         # Store user message
         user_msg = ConversationMessage(
@@ -72,7 +74,7 @@ class ConversationManager:
         root_block.add_message_ref(assistant_msg.message_id)
         
         # Save
-        self.storage.save(self.graph)
+        self.storage.save(self.mindmap)
         
         print(f"\n[OK] Started new conversation: '{root_block.title}'")
         return response
@@ -87,6 +89,9 @@ class ConversationManager:
         Returns:
             Assistant response
         """
+        if not self.graph:
+            return self.start_new_conversation(user_message)
+
         current_block = self.graph.blocks[self.graph.current_block_id]
         
         # Get recent messages for context
@@ -110,20 +115,30 @@ class ConversationManager:
             target_block = current_block
         
         elif classification.action in ["new_child", "tangent"]:
-            # Create new block
-            new_title = classification.new_block_title or "Untitled"
-            new_intent = classification.new_block_intent or "New discussion"
-            
-            target_block = create_child_block(
-                self.llm,
-                current_block,
-                new_title,
-                new_intent
-            )
-            self.graph.add_block(target_block)
+            # Create new block(s)
+            new_blocks = classification.new_blocks or []
+            if not new_blocks and (classification.new_block_title or classification.new_block_intent):
+                new_blocks = [{
+                    "title": classification.new_block_title or "Untitled",
+                    "intent": classification.new_block_intent or "New discussion",
+                }]
+            if not new_blocks:
+                new_blocks = [{"title": "Untitled", "intent": "New discussion"}]
+
+            created_blocks = []
+            for block_seed in new_blocks:
+                new_block = create_child_block(
+                    self.llm,
+                    current_block,
+                    block_seed.get("title", "Untitled"),
+                    block_seed.get("intent", "New discussion"),
+                )
+                self.graph.add_block(new_block)
+                created_blocks.append(new_block)
+                print(f"  [NEW] Created new block: '{new_block.title}'")
+
+            target_block = created_blocks[0]
             self.graph.current_block_id = target_block.block_id
-            
-            print(f"  [NEW] Created new block: '{target_block.title}'")
         
         else:
             # Fallback
@@ -154,7 +169,7 @@ class ConversationManager:
         maybe_auto_summarize(self.llm, self.graph, target_block)
         
         # Save
-        self.storage.save(self.graph)
+        self.storage.save(self.mindmap)
         
         return response
 
@@ -197,12 +212,12 @@ class ConversationManager:
         Returns:
             Summary of the block
         """
-        if block_id not in self.graph.blocks:
+        if not self.graph or block_id not in self.graph.blocks:
             return "Block not found"
         
         self.graph.current_block_id = block_id
         block = self.graph.blocks[block_id]
-        self.storage.save(self.graph)
+        self.storage.save(self.mindmap)
         
         summary = f"\n[BLOCK] Switched to: {block.title}\n"
         summary += f"Intent: {block.intent}\n"
@@ -214,10 +229,15 @@ class ConversationManager:
     def print_mindmap(self) -> None:
         """Print the block tree."""
         print("\n[MINDMAP] CONVERSATION GRAPH:")
+        if not self.graph:
+            print("(no active graph)")
+            return
         print_block_tree(self.graph)
 
     def export_graph(self) -> dict:
         """Export graph as dict (for visualization, etc)."""
+        if not self.graph:
+            return {}
         return self.graph.to_dict()
 
     def delete_block(self, block_id: str) -> None:
@@ -231,3 +251,23 @@ class ConversationManager:
         # Remove the block and update storage
         del self.graph.blocks[block_id]
         self.storage.save(self.graph)
+
+    def list_graphs(self) -> list[tuple[str, str]]:
+        summaries = []
+        for graph_id, graph in self.mindmap.graphs.items():
+            title = "Untitled graph"
+            if graph.root_block_id and graph.root_block_id in graph.blocks:
+                title = graph.blocks[graph.root_block_id].title
+            summaries.append((graph_id, title))
+        return summaries
+
+    def switch_graph(self, graph_id: str) -> str:
+        if graph_id not in self.mindmap.graphs:
+            return "Graph not found"
+        self.mindmap.current_graph_id = graph_id
+        self.graph = self.mindmap.graphs[graph_id]
+        self.storage.save(self.mindmap)
+        title = "Untitled graph"
+        if self.graph.root_block_id in self.graph.blocks:
+            title = self.graph.blocks[self.graph.root_block_id].title
+        return f"\n[GRAPH] Switched to: {title}\nGraph ID: {graph_id}"
