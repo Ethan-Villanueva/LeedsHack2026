@@ -128,7 +128,30 @@ class ConversationGraph:
         if not block:
             return []
         return [self.messages[mid] for mid in block.conversation_refs if mid in self.messages]
+    
+    def collect_descendants(self, block_id: str) -> List[str]:
+        """Collect all descendant block IDs for a given block."""
+        collected: List[str] = []
+        to_visit = list(self.blocks.get(block_id, Block()).children)
+        while to_visit:
+            current_id = to_visit.pop()
+            if current_id in collected:
+                continue
+            collected.append(current_id)
+            current_block = self.blocks.get(current_id)
+            if current_block:
+                to_visit.extend(current_block.children)
+        return collected
 
+    def delete_blocks(self, block_ids: List[str]) -> None:
+        """Delete blocks and their messages from the graph."""
+        for block_id in block_ids:
+            block = self.blocks.get(block_id)
+            if not block:
+                continue
+            for message_id in block.conversation_refs:
+                self.messages.pop(message_id, None)
+            del self.blocks[block_id]
 
 @dataclass
 class BlockClassification:

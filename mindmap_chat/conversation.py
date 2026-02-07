@@ -242,16 +242,29 @@ class ConversationManager:
 
     def delete_block(self, block_id: str) -> None:
         """Delete a block from the graph."""
+        if not self.graph:
+            raise ValueError("No active graph")
         if block_id not in self.graph.blocks:
             raise ValueError(f"Block not found: {block_id}")
         
         if block_id == self.graph.root_block_id:
             raise ValueError("Cannot delete root block")
         
-        # Remove the block and update storage
-        del self.graph.blocks[block_id]
-        self.storage.save(self.graph)
+        block = self.graph.blocks[block_id]
+        descendants = self.graph.collect_descendants(block_id)
+        delete_ids = [block_id] + descendants
 
+        if block.parent_block_id and block.parent_block_id in self.graph.blocks:
+            parent = self.graph.blocks[block.parent_block_id]
+            parent.children = [child for child in parent.children if child not in delete_ids]
+
+        self.graph.delete_blocks(delete_ids)
+
+        if self.graph.current_block_id in delete_ids:
+            self.graph.current_block_id = block.parent_block_id or self.graph.root_block_id
+
+        self.storage.save(self.mindmap)
+        
     def list_graphs(self) -> list[tuple[str, str]]:
         summaries = []
         for graph_id, graph in self.mindmap.graphs.items():
