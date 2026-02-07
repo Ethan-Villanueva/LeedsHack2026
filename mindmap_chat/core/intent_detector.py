@@ -100,6 +100,16 @@ def _classify_with_llm(llm_client: LLMClient, current_block: Block,
         }
         
         action = action_map.get(llm_action, "continue")
+
+        new_blocks = _parse_new_blocks(response_json)
+        if not new_blocks:
+            legacy_title = response_json.get("new_block_title")
+            legacy_intent = response_json.get("new_block_intent")
+            if legacy_title or legacy_intent:
+                new_blocks = [{
+                    "title": legacy_title or "Untitled",
+                    "intent": legacy_intent or "New discussion",
+                }]
         
         return BlockClassification(
             action=action,
@@ -117,3 +127,17 @@ def _classify_with_llm(llm_client: LLMClient, current_block: Block,
             confidence=0.5,
             reasoning="Fallback classification due to LLM error"
         )
+def _parse_new_blocks(response_json: dict) -> list[dict]:
+    new_blocks = []
+    for item in response_json.get("new_blocks", []) or []:
+        if not isinstance(item, dict):
+            continue
+        title = item.get("title")
+        intent = item.get("intent")
+        if not title and not intent:
+            continue
+        new_blocks.append({
+            "title": title or "Untitled",
+            "intent": intent or "New discussion",
+        })
+    return new_blocks

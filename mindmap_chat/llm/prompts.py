@@ -32,8 +32,10 @@ Respond ONLY with valid JSON (no markdown, no extra text):
   "classification": "CONTINUE | DEEPEN | NEW_CHILD | TANGENT",
   "confidence": 0.0-1.0,
   "reasoning": "one sentence explanation",
-  "new_block_title": "title if NEW_CHILD or TANGENT (null otherwise)",
-  "new_block_intent": "intent statement if NEW_CHILD or TANGENT (null otherwise)"
+  "new_blocks": [
+    {"title": "title for child/tangent block", "intent": "intent statement"},
+    {"title": "title for another child", "intent": "intent statement"}
+  ]
 }}"""
 
 
