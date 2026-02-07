@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 class GeminiConfig:
     """Gemini API configuration."""
     api_key: str = os.getenv("GEMINI_API_KEY", "")
-    model_name: str = "gemini-1.5-flash"  # Fast and generous free tier
+    model_name: str = "gemini-3-flash-preview"  # Fast and generous free tier
     temperature: float = 0.7
     max_output_tokens: int = 1024
 

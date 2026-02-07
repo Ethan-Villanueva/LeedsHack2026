@@ -2,3 +2,4 @@
 .env.example
 .venv
 data/
+mindmap_chat/.env.example
