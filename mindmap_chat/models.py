@@ -64,6 +64,7 @@ class Block:
 @dataclass
 class ConversationGraph:
     """The entire conversation state."""
+    graph_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     root_block_id: str = ""
     blocks: Dict[str, Block] = field(default_factory=dict)
     messages: Dict[str, ConversationMessage] = field(default_factory=dict)
@@ -72,6 +73,7 @@ class ConversationGraph:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            "graph_id": self.graph_id,
             "root_block_id": self.root_block_id,
             "blocks": {bid: block.to_dict() for bid, block in self.blocks.items()},
             "messages": {mid: msg.to_dict() for mid, msg in self.messages.items()},
@@ -90,6 +92,7 @@ class ConversationGraph:
             for mid, msg_data in data.get("messages", {}).items()
         }
         return cls(
+            graph_id=data.get("graph_id", str(uuid.uuid4())),
             root_block_id=data.get("root_block_id", ""),
             blocks=blocks,
             messages=messages,
@@ -99,6 +102,20 @@ class ConversationGraph:
 
     def add_block(self, block: Block):
         """Add a block to the graph."""
+        if block.parent_block_id:
+            if block.parent_block_id not in self.blocks:
+                raise ValueError(
+                    f"Parent block '{block.parent_block_id}' not found for '{block.block_id}'."
+                )
+            self.blocks[block.parent_block_id].add_child(block.block_id)
+        else:
+            if self.root_block_id and block.block_id != self.root_block_id:
+                raise ValueError(
+                    f"Root block already set to '{self.root_block_id}', "
+                    f"cannot add another root '{block.block_id}'."
+                )
+            if not self.root_block_id:
+                self.root_block_id = block.block_id
         self.blocks[block.block_id] = block
 
     def add_message(self, message: ConversationMessage):
@@ -116,11 +133,53 @@ class ConversationGraph:
 @dataclass
 class BlockClassification:
     """Output from intent classifier."""
-    action: str  # "continue" | "deepen" | "new_sibling" | "new_child" | "tangent"
+    action: str  # "continue" | "deepen" | "new_child" | "tangent"
     confidence: float
     reasoning: str
     new_block_title: Optional[str] = None
     new_block_intent: Optional[str] = None
+    new_blocks: List[Dict[str, str]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+    
+@dataclass
+class Mindmap:
+    """Container for multiple conversation graphs."""
+    mindmap_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    graphs: Dict[str, ConversationGraph] = field(default_factory=dict)
+    current_graph_id: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "mindmap_id": self.mindmap_id,
+            "graphs": {gid: graph.to_dict() for gid, graph in self.graphs.items()},
+            "current_graph_id": self.current_graph_id,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Mindmap":
+        graphs = {
+            gid: ConversationGraph.from_dict(graph_data)
+            for gid, graph_data in data.get("graphs", {}).items()
+        }
+        current_graph_id = data.get("current_graph_id", "")
+        if current_graph_id and current_graph_id not in graphs:
+            current_graph_id = ""
+        return cls(
+            mindmap_id=data.get("mindmap_id", str(uuid.uuid4())),
+            graphs=graphs,
+            current_graph_id=current_graph_id,
+            metadata=data.get("metadata", {}),
+        )
+
+    def add_graph(self, graph: ConversationGraph) -> None:
+        self.graphs[graph.graph_id] = graph
+        self.current_graph_id = graph.graph_id
+
+    def get_current_graph(self) -> Optional[ConversationGraph]:
+        if not self.current_graph_id:
+            return None
+        return self.graphs.get(self.current_graph_id)
