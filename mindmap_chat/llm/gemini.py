@@ -1,0 +1,67 @@
+"""
+Gemini API client implementation.
+"""
+
+try:
+    import google.genai as genai
+except ImportError:
+    # Fallback to old package if new one not available
+    import google.generativeai as genai
+
+from typing import Any, Dict
+import json
+from .base import LLMClient
+from config import config
+
+
+class GeminiClient(LLMClient):
+    """Gemini API client."""
+
+    def __init__(self):
+        """Initialize Gemini client."""
+        genai.configure(api_key=config.gemini.api_key)
+        self.model = genai.GenerativeModel(config.gemini.model_name)
+        
+        # Embedding model for vector representations
+        self.embedding_model = "models/embedding-001"
+
+    def call(self, prompt: str, json_mode: bool = False) -> str:
+        """
+        Call Gemini API.
+        
+        Args:
+            prompt: The prompt to send
+            json_mode: If True, add instruction to return JSON
+            
+        Returns:
+            The model's response
+        """
+        full_prompt = prompt
+        if json_mode:
+            full_prompt += "\n\nRESPOND ONLY WITH VALID JSON (no markdown, no extra text)."
+        
+        response = self.model.generate_content(
+            full_prompt,
+            generation_config={
+                "temperature": config.gemini.temperature,
+                "max_output_tokens": config.gemini.max_output_tokens,
+            }
+        )
+        
+        return response.text
+
+    def embed(self, text: str) -> list[float]:
+        """
+        Generate embedding using Gemini's embedding model.
+        
+        Args:
+            text: Text to embed
+            
+        Returns:
+            Embedding vector
+        """
+        result = genai.embed_content(
+            model=self.embedding_model,
+            content=text
+        )
+        return result["embedding"]

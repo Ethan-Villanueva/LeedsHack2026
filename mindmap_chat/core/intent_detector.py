@@ -1,0 +1,119 @@
+"""
+Intent shift detection.
+Determines if new message continues, deepens, or diverges from current block.
+"""
+
+from typing import Optional
+from llm.base import LLMClient
+from llm import prompts
+from models import Block, BlockClassification, ConversationMessage
+from core.embeddings import compute_similarity, embed_text
+from config import config
+
+
+def detect_intent_shift(llm_client: LLMClient, current_block: Block, 
+                       new_user_msg: str, last_messages: list[ConversationMessage]) -> BlockClassification:
+    """
+    Detect if the new message represents an intent shift.
+    
+    Uses embedding similarity first (fast), then LLM classification if ambiguous.
+    
+    Args:
+        llm_client: LLM client for embeddings and classification
+        current_block: The current block
+        new_user_msg: The new user message
+        last_messages: Recent messages (for context)
+        
+    Returns:
+        BlockClassification with action and reasoning
+    """
+    
+    # Step 1: Embed the new message
+    new_msg_embedding = embed_text(llm_client, new_user_msg)
+    
+    # Step 2: Compare similarity to current block intent
+    intent_similarity = compute_similarity(new_msg_embedding, current_block.embedding)
+    
+    # Step 3: Make decision based on thresholds
+    thresholds = config.thresholds
+    
+    if intent_similarity >= thresholds.continue_threshold:
+        # Very high similarity: same topic
+        return BlockClassification(
+            action="continue",
+            confidence=intent_similarity,
+            reasoning=f"Message aligns strongly with block intent (similarity: {intent_similarity:.2f})"
+        )
+    
+    elif intent_similarity >= thresholds.deepen_threshold:
+        # Medium-high similarity: deeper dive
+        return BlockClassification(
+            action="deepen",
+            confidence=intent_similarity,
+            reasoning=f"Message deepens the current topic (similarity: {intent_similarity:.2f})"
+        )
+    
+    elif intent_similarity < thresholds.tangent_threshold:
+        # Low similarity: likely tangent or new topic
+        # Ask LLM for confirmation
+        return _classify_with_llm(
+            llm_client, current_block, new_user_msg, last_messages
+        )
+    
+    else:
+        # Medium similarity: ambiguous, ask LLM
+        return _classify_with_llm(
+            llm_client, current_block, new_user_msg, last_messages
+        )
+
+
+def _classify_with_llm(llm_client: LLMClient, current_block: Block, 
+                       new_user_msg: str, last_messages: list[ConversationMessage]) -> BlockClassification:
+    """
+    Use LLM to classify intent shift when embedding similarity is ambiguous.
+    """
+    
+    # Format last messages for context
+    last_user = last_messages[-2].content if len(last_messages) >= 2 else "(first message)"
+    last_assistant = last_messages[-1].content if last_messages else "(no response yet)"
+    
+    # Get classification from LLM
+    prompt = prompts.prompt_classify_intent_shift(
+        current_block.title,
+        current_block.intent,
+        current_block.summary or "(block just started)",
+        last_user,
+        last_assistant,
+        new_user_msg
+    )
+    
+    try:
+        response_json = llm_client.call_json(prompt)
+        
+        # Map LLM response to our action enum
+        llm_action = response_json.get("classification", "").upper()
+        action_map = {
+            "CONTINUE": "continue",
+            "DEEPEN": "deepen",
+            "NEW_CHILD": "new_child",
+            "TANGENT": "tangent",
+        }
+        
+        action = action_map.get(llm_action, "continue")
+        
+        return BlockClassification(
+            action=action,
+            confidence=float(response_json.get("confidence", 0.5)),
+            reasoning=response_json.get("reasoning", ""),
+            new_block_title=response_json.get("new_block_title"),
+            new_block_intent=response_json.get("new_block_intent")
+        )
+    
+    except Exception as e:
+        print(f"Error in LLM classification: {e}")
+        # Fallback
+        return BlockClassification(
+            action="continue",
+            confidence=0.5,
+            reasoning="Fallback classification due to LLM error"
+        )
