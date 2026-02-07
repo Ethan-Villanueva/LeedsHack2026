@@ -20,6 +20,7 @@ Commands:
   /map          View the mindmap
   /blocks       List all blocks
   /switch <id>  Switch to a block
+  /delete <id>  Delete a block
   /clear        Clear conversation history
   /help         Show this help
   /exit         Exit
@@ -83,6 +84,16 @@ def main():
                         print(summary)
                     except IndexError:
                         print("Usage: /switch <block_id>")
+                
+                elif cmd == "/delete":
+                    try:
+                        block_id = user_input.split()[1]
+                        manager.delete_block(block_id)
+                        print(f"[OK] Deleted block: {block_id}")
+                    except IndexError:
+                        print("Usage: /delete <block_id>")
+                    except ValueError as e:
+                        print(f"❌ Error: {e}")
                 
                 elif cmd == "/clear":
                     storage.clear()

@@ -3,10 +3,10 @@ Gemini API client implementation.
 """
 
 try:
-    import google.genai as genai
-except ImportError:
-    # Fallback to old package if new one not available
     import google.generativeai as genai
+except ImportError:
+    # Fallback to new package if old one not available
+    import google.genai as genai
 
 from typing import Any, Dict
 import json

@@ -219,3 +219,15 @@ class ConversationManager:
     def export_graph(self) -> dict:
         """Export graph as dict (for visualization, etc)."""
         return self.graph.to_dict()
+
+    def delete_block(self, block_id: str) -> None:
+        """Delete a block from the graph."""
+        if block_id not in self.graph.blocks:
+            raise ValueError(f"Block not found: {block_id}")
+        
+        if block_id == self.graph.root_block_id:
+            raise ValueError("Cannot delete root block")
+        
+        # Remove the block and update storage
+        del self.graph.blocks[block_id]
+        self.storage.save(self.graph)
