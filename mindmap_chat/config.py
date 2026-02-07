@@ -11,16 +11,7 @@ from dataclasses import dataclass, field
 class GeminiConfig:
     """Gemini API configuration."""
     api_key: str = os.getenv("GEMINI_API_KEY", "")
-    model_name: str = "gemini-1.5-flash"  # Fast and generous free tier
-    temperature: float = 0.7
-    max_output_tokens: int = 1024
-
-
-@dataclass
-class DeepSeekConfig:
-    """DeepSeek API configuration."""
-    api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
-    model_name: str = "deepseek-chat"  # Fast and cheap
+    model_name: str = "gemini-3-flash-preview"  # Fast and generous free tier
     temperature: float = 0.7
     max_output_tokens: int = 1024
 
@@ -45,7 +36,6 @@ class DetectionThresholds:
 class AppConfig:
     """Application-wide configuration."""
     gemini: GeminiConfig = field(default_factory=GeminiConfig)
-    deepseek: DeepSeekConfig = field(default_factory=DeepSeekConfig)
     embeddings: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     thresholds: DetectionThresholds = field(default_factory=DetectionThresholds)
     auto_summarize_after_n_messages: int = 6

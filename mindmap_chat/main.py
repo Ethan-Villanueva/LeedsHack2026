@@ -7,7 +7,7 @@ load_dotenv()
 
 import sys
 from config import config, validate_config
-from llm.deepseek import DeepSeekClient  # Use DeepSeek for generation
+from llm.gemini import GeminiClient
 from storage import JSONStorage
 from conversation import ConversationManager
 
@@ -37,8 +37,8 @@ def main():
         sys.exit(1)
     
     # Initialize
-    print("[INIT] Initializing Mindmap Chat (DeepSeek + Gemini Embeddings)...")
-    llm = DeepSeekClient()
+    print("[INIT] Initializing Gemini Mindmap Chat...")
+    llm = GeminiClient()
     storage = JSONStorage(config.storage_path)
     manager = ConversationManager(llm, storage)
     
