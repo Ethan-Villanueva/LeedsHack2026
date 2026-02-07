@@ -3,3 +3,4 @@
 .venv
 data/
 /.vs
+mindmap_chat/.env.example
