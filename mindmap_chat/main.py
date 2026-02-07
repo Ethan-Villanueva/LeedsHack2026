@@ -2,6 +2,9 @@
 Main entry point: Interactive CLI for the mindmap chat system.
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import sys
 from config import config, validate_config
 from llm.deepseek import DeepSeekClient  # Use DeepSeek for generation
