@@ -103,7 +103,7 @@ User message arrives
 
 Edit `config.py`:
 
-- **Gemini model**: `model_name` (default: `gemini-3-flash-preview`)
+- **Gemini model**: `model_name` (default: `gemini-1.5-flash`)
 - **Thresholds**: `continue_threshold`, `deepen_threshold`, etc.
 - **Auto-summarize**: After how many messages?
 - **Context size**: How many recent messages to include?

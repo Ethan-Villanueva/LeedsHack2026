@@ -23,7 +23,7 @@ class GeminiClient(LLMClient):
         self.model = genai.GenerativeModel(config.gemini.model_name)
         
         # Embedding model for vector representations
-        self.embedding_model = "models/gemini-embedding-001"
+        self.embedding_model = "models/embedding-001"
 
     def call(self, prompt: str, json_mode: bool = False) -> str:
         """
