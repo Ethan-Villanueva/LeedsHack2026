@@ -1,6 +1,32 @@
+/* Genio Brand Colors */
+:root {
+    --prawn-cocktail: #FC88C6;
+    --pickled-onion: #D49FFF;
+    --cool-ranch: #9797FF;
+    --hint-of-prawn: #FFCFED;
+    --mild-onion: #E6CCFF;
+    --icy-ranch: #D2D2FF;
+    --ready-salted: #FF5457;
+    --sweet-chilli: #00C6B2;
+    --roast-chicken: #FFA343;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 html, body {
     height: 100%;
     overflow: hidden;
+    font-family: 'Nunito Sans', sans-serif;
+    background-color: white;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
 }
 
 .main-container {
@@ -10,11 +36,44 @@ html, body {
 }
 
 .header {
-    background-color: #0d6efd;
-    color: white;
-    padding: 1rem;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    background: linear-gradient(135deg, var(--prawn-cocktail) 0%, var(--pickled-onion) 100%);
+    color: black;
+    padding: 1.5rem 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     flex-shrink: 0;
+}
+
+.logo-container {
+    margin-bottom: 1rem;
+}
+
+.genio-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.genio-planet {
+    flex-shrink: 0;
+}
+
+.genio-text {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: black;
+    letter-spacing: -0.02em;
+}
+
+.header h1 {
+    font-size: 2rem;
+    margin-bottom: 0.25rem;
+}
+
+.header small {
+    font-family: 'Nunito Sans', sans-serif;
+    font-size: 1rem;
+    opacity: 0.9;
 }
 
 .content-wrapper {
@@ -38,7 +97,12 @@ html, body {
 .left-panel {
     flex: 0 0 20%;
     min-width: 200px;
-    background-color: #f8f9fa;
+    background-color: var(--hint-of-prawn);
+    color: black;
+}
+
+.left-panel * {
+    color: black;
 }
 
 .middle-panel {
@@ -62,14 +126,16 @@ html, body {
 }
 
 .resize-handle:hover {
-    background-color: #0d6efd;
+    background-color: var(--pickled-onion);
 }
 
 .panel-header {
-    padding: 1rem;
-    background-color: #e9ecef;
-    border-bottom: 1px solid #dee2e6;
-    font-weight: 600;
+    padding: 1rem 1.5rem;
+    background-color: white;
+    border-bottom: 2px solid black;
+    font-weight: 700;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.125rem;
     flex-shrink: 0;
 }
 
@@ -86,24 +152,82 @@ html, body {
 }
 
 .mindmap-item {
-    padding: 0.75rem;
-    margin-bottom: 0.5rem;
+    padding: 0.875rem 1rem;
+    margin-bottom: 0.75rem;
     background-color: white;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
+    border: 2px solid black;
+    border-radius: 25px;
     cursor: pointer;
     transition: all 0.2s;
+    font-family: 'Nunito Sans', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+}
+
+.mindmap-title {
+    flex: 1;
+}
+
+.mindmap-delete-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: black;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+    padding: 0;
+    margin-left: 0.5rem;
+    font-weight: bold;
+}
+
+.mindmap-item:hover .mindmap-delete-btn {
+    opacity: 1;
+}
+
+.mindmap-delete-btn:hover {
+    color: var(--ready-salted);
+}
+
+.add-mindmap-btn {
+    margin: 1rem;
+    padding: 0.875rem 1rem;
+    background-color: black;
+    color: white;
+    border: 2px solid black;
+    border-radius: 25px;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    transition: all 0.2s;
+    width: calc(100% - 2rem);
+}
+
+.add-mindmap-btn:hover {
+    background-color: var(--prawn-cocktail);
+    color: black;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+    font-weight: 400;
 }
 
 .mindmap-item:hover {
-    background-color: #0d6efd;
-    color: white;
-    border-color: #0d6efd;
+    background-color: var(--prawn-cocktail);
+    color: black;
+    border-color: black;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .mindmap-item.active {
-    background-color: #0d6efd;
-    color: white;
+    background-color: var(--pickled-onion);
+    color: black;
+    border-color: black;
+    font-weight: 800;
+}   color: white;
     border-color: #0d6efd;
 }
 
@@ -115,47 +239,133 @@ html, body {
     font-style: italic;
 }
 
+/* Mindmap SVG text styling */
+#mindmapSvg text {
+    fill: black;
+    color: black;
+    font-weight: 500;
+}
+
 .chat-messages {
     flex: 1;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    padding: 1.5rem;
+    gap: 1rem;
+    background-color: white;
+}
+
+.chat-message-wrapper {
+    display: flex;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.chat-message-wrapper.bot {
+    justify-content: flex-start;
+}
+
+.chat-message-wrapper.user {
+    justify-content: flex-end;
 }
 
 .chat-message {
     display: flex;
-    margin-bottom: 1rem;
-    animation: fadeIn 0.3s ease-in;
-}
-
-.chat-message.user {
-    justify-content: flex-end;
+    flex-direction: column;
+    max-width: 65%;
+    gap: 0.5rem;
 }
 
 .chat-bubble {
-    max-width: 70%;
-    padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
+    max-width: 100%;
+    padding: 1rem 1.25rem;
+    border-radius: 25px;
     word-wrap: break-word;
+    font-family: 'Nunito Sans', sans-serif;
+    line-height: 1.6;
 }
 
-.chat-message.user .chat-bubble {
-    background-color: #0d6efd;
+.chat-message-wrapper.user .chat-bubble {
+    background-color: black;
     color: white;
+    border: 2px solid black;
 }
 
-.chat-message.bot .chat-bubble {
-    background-color: #e9ecef;
-    color: #212529;
+.chat-message-wrapper.bot .chat-bubble {
+    background-color: var(--mild-onion);
+    color: black;
+    border: 2px solid black;
+}
+
+.chat-message-wrapper.user .chat-timestamp {
+    text-align: right;
+}
+
+.chat-message-wrapper.bot .chat-timestamp {
+    text-align: left;
 }
 
 .chat-timestamp {
-    font-size: 0.75rem;
-    color: #6c757d;
-    margin-top: 0.25rem;
+    font-size: 0.7rem;
+    color: #999;
+    font-family: 'Nunito Sans', sans-serif;
 }
 
 .chat-input-area {
+    padding: 1rem 1.5rem;
+    border-top: 2px solid #dee2e6;
+    background-color: white;
+    flex-shrink: 0;
+}
+
+.chat-input-area .input-group {
+    border: 2px solid black;
+    border-radius: 25px;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-end;
+}
+
+.chat-input-area .form-control {
+    border: none;
+    padding: 0.875rem 1.25rem;
+    font-family: 'Nunito Sans', sans-serif;
+    font-size: 1rem;
+    resize: none;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.chat-input-area .form-control.chat-input {
+    line-height: 1.5;
+    min-height: 2.5rem;
+}
+
+.chat-input-area .form-control:focus {
+    box-shadow: none;
+    outline: none;
+}
+
+.chat-input-area .btn-primary {
+    background-color: black;
+    border: none;
+    color: white;
+    padding: 0.875rem 1.5rem;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    border-radius: 0;
+    flex-shrink: 0;
+    height: 100%;
+    cursor: pointer;
+}
+    transition: all 0.2s;
+}
+
+.chat-input-area .btn-primary:hover {
+    background-color: var(--prawn-cocktail);
+    color: black;
+    transform: translateY(-1px);
+}chat-input-area {
     padding: 1rem;
     border-top: 1px solid #dee2e6;
     background-color: white;

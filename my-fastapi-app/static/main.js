@@ -245,27 +245,89 @@ function sendMessage() {
 
     const chatMessages = document.getElementById('chatMessages');
 
-    // Add user message
-    const userDiv = document.createElement('div');
-    userDiv.className = 'chat-message user';
-    userDiv.innerHTML = `<div><div class="chat-bubble">${message}</div><div class="chat-timestamp">Just now</div></div>`;
-    chatMessages.appendChild(userDiv);
+    // Add user message with new wrapper structure
+    const userWrapper = document.createElement('div');
+    userWrapper.className = 'chat-message-wrapper user';
+    userWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble">${message}</div><div class="chat-timestamp">Just now</div></div>`;
+    chatMessages.appendChild(userWrapper);
 
     input.value = '';
 
     // Simulate bot response
     setTimeout(() => {
-        const botDiv = document.createElement('div');
-        botDiv.className = 'chat-message bot';
-        botDiv.innerHTML = `<div><div class="chat-bubble">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</div><div class="chat-timestamp">Just now</div></div>`;
-        chatMessages.appendChild(botDiv);
+        const botWrapper = document.createElement('div');
+        botWrapper.className = 'chat-message-wrapper bot';
+        botWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</div><div class="chat-timestamp">Just now</div></div>`;
+        chatMessages.appendChild(botWrapper);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }, 500);
 
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// Allow Enter key to send
-document.getElementById('messageInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage();
+// Auto-resize textarea as user types
+const messageInput = document.getElementById('messageInput');
+
+function autoResizeTextarea() {
+    messageInput.style.height = 'auto';
+    messageInput.style.height = Math.min(messageInput.scrollHeight, 150) + 'px';
+}
+
+messageInput.addEventListener('input', autoResizeTextarea);
+
+// Allow Enter key to send (Ctrl+Enter for new line)
+messageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.ctrlKey) {
+        e.preventDefault();
+        sendMessage();
+    }
 });
+
+// Add mindmap function
+function addMindmap() {
+    const mindmapName = prompt('Enter the name for the new mindmap:');
+    if (!mindmapName || mindmapName.trim() === '') return;
+
+    const mindmapList = document.querySelector('.mindmap-list');
+    const newId = Math.max(...Object.keys(mindmapData).map(Number)) + 1;
+    
+    // Add to data
+    mindmapData[newId] = {
+        nodes: [
+            { id: `mm${newId}-root`, label: mindmapName, type: 'root' }
+        ],
+        links: []
+    };
+
+    // Create new list item
+    const newItem = document.createElement('li');
+    newItem.className = 'mindmap-item';
+    newItem.innerHTML = `
+        <span class="mindmap-title">${mindmapName}</span>
+        <button class="mindmap-delete-btn" onclick="deleteMindmap(event, ${newId})">×</button>
+    `;
+    newItem.onclick = function() { selectMindmap(this, mindmapName, newId); };
+    mindmapList.appendChild(newItem);
+}
+
+// Delete mindmap function
+function deleteMindmap(event, mindmapId) {
+    event.stopPropagation();
+    
+    if (confirm('Are you sure you want to delete this mindmap?')) {
+        // Remove from data
+        delete mindmapData[mindmapId];
+        
+        // Remove from DOM
+        const item = event.target.closest('.mindmap-item');
+        item.remove();
+        
+        // If deleted the current mindmap, select the first available
+        if (currentMindmapId === mindmapId) {
+            const firstItem = document.querySelector('.mindmap-item');
+            if (firstItem) {
+                firstItem.click();
+            }
+        }
+    }
+}
