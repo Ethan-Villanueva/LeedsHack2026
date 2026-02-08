@@ -50,9 +50,13 @@ class JSONStorage:
             data = json.load(f)
         
         if "graphs" in data:
-            return Mindmap.from_dict(data)
+            mindmap = Mindmap.from_dict(data)
+            for graph in mindmap.graphs.values():
+                graph.rebuild_children()
+            return mindmap
 
         graph = ConversationGraph.from_dict(data)
+        graph.rebuild_children()
         mindmap = Mindmap()
         mindmap.add_graph(graph)
         return mindmap
