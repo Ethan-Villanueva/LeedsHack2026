@@ -33,8 +33,8 @@ Respond ONLY with valid JSON (no markdown, no extra text):
   "confidence": 0.0-1.0,
   "reasoning": "one sentence explanation",
   "new_blocks": [
-    {"title": "title for child/tangent block", "intent": "intent statement"},
-    {"title": "title for another child", "intent": "intent statement"}
+    {{"title": "title for child/tangent block", "intent": "intent statement"}},
+    {{"title": "title for another child", "intent": "intent statement"}}
   ]
 }}"""
 
