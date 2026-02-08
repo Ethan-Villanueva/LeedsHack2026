@@ -153,6 +153,14 @@ class ConversationGraph:
                 self.messages.pop(message_id, None)
             del self.blocks[block_id]
 
+    def rebuild_children(self) -> None:
+        """Rebuild children lists from parent_block_id references."""
+        for block in self.blocks.values():
+            block.children = []
+        for block_id, block in self.blocks.items():
+            if block.parent_block_id and block.parent_block_id in self.blocks:
+                self.blocks[block.parent_block_id].add_child(block_id)
+
 @dataclass
 class BlockClassification:
     """Output from intent classifier."""

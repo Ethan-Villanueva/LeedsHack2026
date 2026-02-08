@@ -4,6 +4,7 @@ Ties together all modules for the core functionality.
 """
 
 from typing import Optional
+import re
 from llm.base import LLMClient
 from llm import prompts
 from models import ConversationGraph, ConversationMessage, Block, Mindmap, BlockClassification
@@ -248,8 +249,8 @@ class ConversationManager:
 
         if not new_blocks:
             new_blocks = [{
-                "title": f"Deep dive: {current_block.title}" or "Deep dive",
-                "intent": f"Deepen {current_block.intent}: {user_message}",
+                "title": _make_deepen_title(current_block.title, user_message),
+                "intent": f"Explore details of {current_block.intent}: {user_message}",
             }]
 
         return new_blocks
@@ -350,3 +351,24 @@ class ConversationManager:
         if self.graph.root_block_id in self.graph.blocks:
             title = self.graph.blocks[self.graph.root_block_id].title
         return f"\n[GRAPH] Switched to: {title}\nGraph ID: {graph_id}"
+    
+def _make_deepen_title(parent_title: str, user_message: str) -> str:
+    cleaned_title = re.sub(r"^(deep dive|deepen|details)\s*[:\-]\s*", "", parent_title, flags=re.I).strip()
+    cleaned_title = cleaned_title or "Details"
+    snippet = _summarize_message_fragment(user_message)
+    if snippet:
+        return f"{cleaned_title} — {snippet}"
+    return f"{cleaned_title} (details)"
+
+
+def _summarize_message_fragment(message: str, max_words: int = 8, max_chars: int = 60) -> str:
+    if not message:
+        return ""
+    normalized = " ".join(message.strip().split())
+    if not normalized:
+        return ""
+    words = normalized.split()
+    truncated = " ".join(words[:max_words])
+    if len(truncated) > max_chars:
+        truncated = truncated[:max_chars].rstrip()
+    return truncated
