@@ -388,6 +388,39 @@ class ConversationManager:
             title = self.graph.blocks[self.graph.root_block_id].title
         return f"\n[GRAPH] Switched to: {title}\nGraph ID: {graph_id}"
     
+    def delete_graph(self, graph_id: str) -> None:
+        """
+        Delete an entire graph and all its blocks.
+        
+        Args:
+            graph_id: ID of the graph to delete
+            
+        Raises:
+            ValueError: If graph not found or only one graph remains
+        """
+        if graph_id not in self.mindmap.graphs:
+            raise ValueError(f"Graph not found: {graph_id}")
+        
+        if len(self.mindmap.graphs) == 1:
+            raise ValueError("Cannot delete the only graph")
+        
+        # Remove graph from mindmap
+        del self.mindmap.graphs[graph_id]
+        
+        # Switch to another graph if current was deleted
+        if self.mindmap.current_graph_id == graph_id:
+            # Pick the first available graph
+            remaining_graph_ids = list(self.mindmap.graphs.keys())
+            if remaining_graph_ids:
+                self.mindmap.current_graph_id = remaining_graph_ids[0]
+                self.graph = self.mindmap.graphs[self.mindmap.current_graph_id]
+            else:
+                # Fallback: create empty graph
+                self.graph = ConversationGraph()
+                self.mindmap.add_graph(self.graph)
+        
+        self.storage.save(self.mindmap)
+    
 def _make_deepen_title(parent_title: str, user_message: str) -> str:
     cleaned_title = re.sub(r"^(deep dive|deepen|details)\s*[:\-]\s*", "", parent_title, flags=re.I).strip()
     cleaned_title = cleaned_title or "Details"

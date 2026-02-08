@@ -24,6 +24,7 @@ Commands:
   /delete <id>  Delete a block
   /graphs       List all graphs
   /switch-graph <id>  Switch to a graph
+  /delete-graph <id>  Delete an entire graph
   /clear        Clear conversation history
   /help         Show this help
   /exit         Exit
@@ -145,8 +146,43 @@ def main():
                     print("Goodbye!")
                     break
                 
-                else:
-                    print(f"Unknown command: {cmd}")
+                elif cmd == "/delete-graph":
+                    try:
+                        graph_id = user_input.split()[1]
+                        print(f"[DEBUG] Attempting to delete graph: {graph_id}")
+                        
+                        # Ask for confirmation
+                        graphs = manager.list_graphs()
+                        print(f"[DEBUG] Available graphs: {graphs}")
+                        
+                        if not graphs:
+                            print("❌ Error: No graphs available")
+                            continue
+                        
+                        graph_title = next((title for gid, title in graphs if gid == graph_id), None)
+                        if graph_title is None:
+                            print(f"❌ Error: Graph ID '{graph_id}' not found")
+                            print("Available graphs:")
+                            for gid, title in graphs:
+                                print(f"  {gid}: {title}")
+                            continue
+                        
+                        confirm = input(f"\nDelete graph '{graph_title}'? This cannot be undone. (y/n): ").strip().lower()
+                        if confirm == 'y':
+                            print(f"[DEBUG] User confirmed deletion")
+                            manager.delete_graph(graph_id)
+                            print(f"[OK] Deleted graph: {graph_id}")
+                        else:
+                            print("[CANCELLED]")
+                    except IndexError as ie:
+                        print("Usage: /delete-graph <graph_id>")
+                        print("Use /graphs to see available graph IDs")
+                    except ValueError as ve:
+                        print(f"❌ Error: {ve}")
+                    except Exception as e:
+                        print(f"❌ Unexpected error: {e}")
+                        import traceback
+                        traceback.print_exc()
             
             else:
                 # Regular conversation
