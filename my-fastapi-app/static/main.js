@@ -596,7 +596,7 @@ window.addEventListener('load', async () => {
             .attr('dy', '0.3em')
             .attr('fill', '#999')
             .attr('font-size', '16px')
-            .text('No mindmaps. Type "/new" to create one.');
+            .text('No mindmaps. Press the "new mindmap" button to create one.');
         
         // Show placeholder in right panel
         updateRightHeader('Ready to chat', '', null);
