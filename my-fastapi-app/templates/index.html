@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;700&family=Nunito+Sans:wght@400;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
-    <title>The G - MindMap Chat</title>
+    <title>Mindmaply - AI mindmap chat</title>
 </head>
 <body>
     <div class="main-container">
@@ -20,10 +20,10 @@
                         <circle cx="16" cy="16" r="14" fill="black"/>
                         <path d="M8 16 L24 16 M16 8 L16 24 M12 12 L20 20" stroke="white" stroke-width="2" stroke-linecap="round"/>
                     </svg>
-                    <span class="genio-text">The G</span>
+                    <span class="genio-text">Mindmaply</span>
                 </div>
             </div>
-            <h1 class="mb-0">MindMap Chat</h1>
+            <h1 class="mb-0">The AI Mindmap Chat</h1>
             <small>Choose a mindmap and learn together with AI</small>
         </div>
 
@@ -80,8 +80,27 @@
         </div>
     </div>
 
+    <div id="ui-modal" class="ui-modal hidden" aria-hidden="true">
+        <div class="ui-modal-backdrop" data-modal-close></div>
+        <div class="ui-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="ui-modal-title">
+            <div class="ui-modal-header">
+                <h2 id="ui-modal-title">Notice</h2>
+                <button class="ui-modal-close" type="button" aria-label="Close">x</button>
+            </div>
+            <div class="ui-modal-body">
+                <p id="ui-modal-message"></p>
+                <input id="ui-modal-input" class="ui-modal-input" type="text" autocomplete="off">
+            </div>
+            <div class="ui-modal-footer">
+                <button id="ui-modal-cancel" class="ui-modal-button secondary" type="button">Cancel</button>
+                <button id="ui-modal-confirm" class="ui-modal-button primary" type="button">OK</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="/static/main.js"></script>
 </body>
 </html>

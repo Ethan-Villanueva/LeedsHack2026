@@ -41,13 +41,12 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
-pip install -r my-flask-app/requirements.txt
-pip install -r my-fastapi-app/requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Running the Apps
 
-### Flask App (Port 5000)
+### Flask App (Port 5000) DEFUNCT DO NOT USE
 
 **Option 1: Using launch script (Windows)**
 ```powershell
@@ -97,16 +96,6 @@ API docs: **http://127.0.0.1:8000/docs**
 
 ```
 LeedsHack2026/
-├── my-flask-app/           # Flask version
-│   ├── app/
-│   │   ├── __init__.py
-│   │   └── routes.py
-│   ├── templates/
-│   │   └── index.html
-│   ├── static/
-│   │   ├── style.css
-│   │   └── main.js
-│   └── requirements.txt
 ├── my-fastapi-app/         # FastAPI version
 │   ├── app/
 │   │   ├── __init__.py
@@ -116,13 +105,13 @@ LeedsHack2026/
 │   ├── static/
 │   │   ├── style.css
 │   │   └── main.js
-│   └── requirements.txt
 ├── mindmap_chat/           # AI backend for mind map generation
 ├── launch.ps1              # Flask launcher (Windows)
 ├── launch.sh               # Flask launcher (macOS/Linux)
 ├── launch-fastapi.ps1      # FastAPI launcher (Windows)
 ├── launch-fastapi.sh       # FastAPI launcher (macOS/Linux)
 └── README.md
+└── requirements.txt
 ```
 
 ## Features
