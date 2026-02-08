@@ -9,6 +9,7 @@
     --ready-salted: #FF5457;
     --sweet-chilli: #00C6B2;
     --roast-chicken: #FFA343;
+    --panel-header-height: 88px;
 }
 
 * {
@@ -137,6 +138,10 @@ h1, h2, h3, h4, h5, h6 {
     font-family: 'Poppins', sans-serif;
     font-size: 1.125rem;
     flex-shrink: 0;
+    min-height: var(--panel-header-height);
+    height: var(--panel-header-height);
+    display: flex;
+    align-items: center;
 }
 
 .right-header-content {
@@ -144,6 +149,7 @@ h1, h2, h3, h4, h5, h6 {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    width: 100%;
 }
 
 .right-header-content h3 {
@@ -251,8 +257,6 @@ h1, h2, h3, h4, h5, h6 {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
-    font-weight: 400;
-}
 
 .mindmap-item:hover {
     background-color: var(--prawn-cocktail);
@@ -267,8 +271,6 @@ h1, h2, h3, h4, h5, h6 {
     color: black;
     border-color: black;
     font-weight: 800;
-}   color: white;
-    border-color: #0d6efd;
 }
 
 .mindmap-display {
@@ -427,18 +429,11 @@ h1, h2, h3, h4, h5, h6 {
     height: 100%;
     cursor: pointer;
 }
-    transition: all 0.2s;
-}
 
 .chat-input-area .btn-primary:hover {
     background-color: var(--prawn-cocktail);
     color: black;
     transform: translateY(-1px);
-}chat-input-area {
-    padding: 1rem;
-    border-top: 1px solid #dee2e6;
-    background-color: white;
-    flex-shrink: 0;
 }
 
 @keyframes fadeIn {

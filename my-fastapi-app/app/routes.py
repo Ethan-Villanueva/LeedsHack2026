@@ -141,6 +141,11 @@ async def create_new_mindmap(payload: StartConversationRequest):
     mindmap = get_storage().load()
     graph = mindmap.graphs.get(mindmap.current_graph_id)
     root_block = graph.blocks.get(graph.root_block_id)
+
+    # Ensure the root node title matches the user-provided topic
+    if root_block and payload.topic:
+        root_block.title = payload.topic
+        get_storage().save(mindmap)
     
     return {
         "graph_id": graph.graph_id,
