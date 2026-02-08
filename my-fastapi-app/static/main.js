@@ -40,6 +40,32 @@ async function fetchGraphData(graphId) {
     }
 }
 
+async function switchMindmap(graphId) {
+    try {
+        const response = await fetch(`/api/mindmaps/${graphId}/switch`, {
+            method: 'POST'
+        });
+        if (!response.ok) throw new Error('Failed to switch mindmap');
+        return await response.json();
+    } catch (error) {
+        console.error('Error switching mindmap:', error);
+        return null;
+    }
+}
+
+async function switchBlock(blockId) {
+    try {
+        const response = await fetch(`/api/blocks/${blockId}/switch`, {
+            method: 'POST'
+        });
+        if (!response.ok) throw new Error('Failed to switch block');
+        return await response.json();
+    } catch (error) {
+        console.error('Error switching block:', error);
+        return null;
+    }
+}
+
 async function fetchBlockMessages(blockId) {
     try {
         const response = await fetch(`/api/blocks/${blockId}/messages`);
@@ -289,6 +315,8 @@ async function selectMindmap(element, graphId) {
     
     currentGraphId = graphId;
     currentMindmapId = graphId;
+
+    await switchMindmap(graphId);
     
     // Fetch graph data from API
     const graphData = await fetchGraphData(graphId);
@@ -298,6 +326,7 @@ async function selectMindmap(element, graphId) {
         if (rootBlock) {
             document.getElementById('mindmapTitle').textContent = rootBlock.label;
             currentBlockId = rootBlock.id;  // Set current block to root
+            await switchBlock(rootBlock.id);
         }
         drawMindmap(graphData);
         updateRightHeaderFromGraph();
@@ -359,6 +388,7 @@ function drawMindmap(graphData) {
         .style('cursor', 'pointer')
         .on('click', async (event, d) => {
             // Clicking a node just loads its messages into the chat panel.
+            await switchBlock(d.id);
             await loadBlockMessages(d.id);
             
             // Update current block highlighting

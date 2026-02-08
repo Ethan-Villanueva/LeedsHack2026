@@ -14,8 +14,10 @@ from core import (
     create_child_block,
     maybe_auto_summarize,
     construct_block_context,
+    compute_similarity,
     embed_text,
 )
+from config import config
 from storage import JSONStorage
 from utils import print_block_tree
 
@@ -123,13 +125,25 @@ class ConversationManager:
             self.graph.current_block_id = target_block.block_id
 
         elif classification.action == "tangent":
-            # Start a new graph with this message as the root block
-            self.graph = ConversationGraph()
-            root_block = create_root_block(self.llm, user_message)
-            self.graph.add_block(root_block)
-            self.graph.current_block_id = root_block.block_id
-            self.mindmap.add_graph(self.graph)
-            target_block = root_block
+            matched = self._find_matching_block_in_other_graphs(user_message)
+            if matched:
+                matched_graph, matched_block, similarity = matched
+                self.graph = matched_graph
+                self.mindmap.current_graph_id = matched_graph.graph_id
+                self.graph.current_block_id = matched_block.block_id
+                target_block = matched_block
+                print(
+                    f"  [MATCH] Redirected tangent to '{matched_block.title}' "
+                    f"(similarity: {similarity:.2f})"
+                )
+            else:
+                # Start a new graph with this message as the root block
+                self.graph = ConversationGraph()
+                root_block = create_root_block(self.llm, user_message)
+                self.graph.add_block(root_block)
+                self.graph.current_block_id = root_block.block_id
+                self.mindmap.add_graph(self.graph)
+                target_block = root_block
 
         elif classification.action == "new_child":
             # Create new block(s)
@@ -268,6 +282,33 @@ class ConversationManager:
             created_blocks.append(new_block)
             print(f"  [NEW] Created new block: '{new_block.title}'")
         return created_blocks
+    
+    def _find_matching_block_in_other_graphs(
+        self,
+        user_message: str,
+    ) -> Optional[tuple[ConversationGraph, Block, float]]:
+        if not self.graph:
+            return None
+
+        user_embedding = embed_text(self.llm, user_message)
+        best_match: Optional[tuple[ConversationGraph, Block, float]] = None
+
+        for graph_id, graph in self.mindmap.graphs.items():
+            if graph_id == self.graph.graph_id:
+                continue
+            for block in graph.blocks.values():
+                if not block.intent:
+                    continue
+                if not block.embedding:
+                    block.embedding = embed_text(self.llm, block.intent)
+                similarity = compute_similarity(user_embedding, block.embedding)
+                if best_match is None or similarity > best_match[2]:
+                    best_match = (graph, block, similarity)
+
+        if best_match and best_match[2] >= config.thresholds.sibling_threshold:
+            return best_match
+
+        return None
     
     def switch_block(self, block_id: str) -> str:
         """
