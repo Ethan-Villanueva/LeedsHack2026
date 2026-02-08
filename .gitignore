@@ -3,9 +3,5 @@
 .venv
 data/
 /.vs
-mindmap_chat/.env.example
-mindmap_chat/core/__pycache__
-mindmap_chat/llm/__pycache__
-mindmap_chat/storage/__pycache__
-mindmap_chat/utils/__pycache__
-mindmap_chat/__pycache__
+__pycache__/
+*.pyc
