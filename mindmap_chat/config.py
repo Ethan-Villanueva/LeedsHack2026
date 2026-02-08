@@ -33,9 +33,10 @@ class EmbeddingConfig:
 @dataclass
 class DetectionThresholds:
     """Thresholds for intent detection."""
-    continue_threshold: float = 0.85  # Same topic
+    continue_threshold: float = 0.90  # Same topic
     deepen_threshold: float = 0.70  # Deeper dive
     sibling_threshold: float = 0.75  # Related subtopic
+    related_match_threshold: float = 0.60  # Looser match for related blocks
     tangent_threshold: float = 0.65  # Unrelated
 
 

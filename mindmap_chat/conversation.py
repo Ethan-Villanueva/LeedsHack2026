@@ -128,14 +128,34 @@ class ConversationManager:
             matched = self._find_matching_block_in_other_graphs(user_message)
             if matched:
                 matched_graph, matched_block, similarity = matched
-                self.graph = matched_graph
-                self.mindmap.current_graph_id = matched_graph.graph_id
-                self.graph.current_block_id = matched_block.block_id
-                target_block = matched_block
-                print(
-                    f"  [MATCH] Redirected tangent to '{matched_block.title}' "
-                    f"(similarity: {similarity:.2f})"
-                )
+                if similarity >= config.thresholds.continue_threshold:
+                    self.graph = matched_graph
+                    self.mindmap.current_graph_id = matched_graph.graph_id
+                    self.graph.current_block_id = matched_block.block_id
+                    target_block = matched_block
+                    print(
+                        f"  [MATCH] Redirected tangent to '{matched_block.title}' "
+                        f"(similarity: {similarity:.2f})"
+                    )
+                else:
+                    self.graph = matched_graph
+                    self.mindmap.current_graph_id = matched_graph.graph_id
+                    self.graph.current_block_id = matched_block.block_id
+                    new_blocks = self._resolve_deepen_blocks(
+                        classification,
+                        matched_block,
+                        user_message,
+                    )
+                    created_blocks = self._create_child_blocks(
+                        matched_block,
+                        new_blocks,
+                    )
+                    target_block = created_blocks[0]
+                    self.graph.current_block_id = target_block.block_id
+                    print(
+                        f"  [MATCH] Created child under '{matched_block.title}' "
+                        f"(similarity: {similarity:.2f})"
+                    )
             else:
                 # Start a new graph with this message as the root block
                 self.graph = ConversationGraph()
@@ -283,6 +303,7 @@ class ConversationManager:
             print(f"  [NEW] Created new block: '{new_block.title}'")
         return created_blocks
     
+   
     def _find_matching_block_in_other_graphs(
         self,
         user_message: str,
@@ -294,8 +315,6 @@ class ConversationManager:
         best_match: Optional[tuple[ConversationGraph, Block, float]] = None
 
         for graph_id, graph in self.mindmap.graphs.items():
-            if graph_id == self.graph.graph_id:
-                continue
             for block in graph.blocks.values():
                 if not block.intent:
                     continue
@@ -359,7 +378,9 @@ class ConversationManager:
             raise ValueError("Cannot delete root block")
         
         block = self.graph.blocks[block_id]
-        descendants = self.graph.collect_descendants(block_id)
+        
+        # Delete all children using depth-first traversal
+        descendants = self._delete_children(block_id)
         delete_ids = [block_id] + descendants
 
         if block.parent_block_id and block.parent_block_id in self.graph.blocks:
@@ -372,6 +393,40 @@ class ConversationManager:
             self.graph.current_block_id = block.parent_block_id or self.graph.root_block_id
 
         self.storage.save(self.mindmap)
+    
+    def _delete_children(self, block_id: str) -> list[str]:
+        """
+        Iteratively collect all children of a block using depth-first traversal.
+        Avoids recursion depth issues and memory leak risks.
+        
+        Args:
+            block_id: ID of the block whose children to delete
+            
+        Returns:
+            List of deleted descendant block IDs (excluding the block_id itself)
+        """
+        deleted_ids = []
+        stack = [block_id]
+        visited = set()
+        
+        # Build parent->children map in reverse (children->parents)
+        while stack:
+            current_id = stack.pop()
+            
+            if current_id in visited:
+                continue  # Avoid infinite loops from circular references
+            
+            visited.add(current_id)
+            block = self.graph.blocks.get(current_id)
+            
+            if block:
+                stack.extend(block.children)
+        
+        # visited contains all reachable blocks from block_id
+        # Remove the root block_id itself
+        deleted_ids = list(visited - {block_id})
+        
+        return deleted_ids
         
     def list_graphs(self) -> list[tuple[str, str]]:
         summaries = []
@@ -392,6 +447,39 @@ class ConversationManager:
         if self.graph.root_block_id in self.graph.blocks:
             title = self.graph.blocks[self.graph.root_block_id].title
         return f"\n[GRAPH] Switched to: {title}\nGraph ID: {graph_id}"
+    
+    def delete_graph(self, graph_id: str) -> None:
+        """
+        Delete an entire graph and all its blocks.
+        
+        Args:
+            graph_id: ID of the graph to delete
+            
+        Raises:
+            ValueError: If graph not found or only one graph remains
+        """
+        if graph_id not in self.mindmap.graphs:
+            raise ValueError(f"Graph not found: {graph_id}")
+        
+        if len(self.mindmap.graphs) == 1:
+            raise ValueError("Cannot delete the only graph")
+        
+        # Remove graph from mindmap
+        del self.mindmap.graphs[graph_id]
+        
+        # Switch to another graph if current was deleted
+        if self.mindmap.current_graph_id == graph_id:
+            # Pick the first available graph
+            remaining_graph_ids = list(self.mindmap.graphs.keys())
+            if remaining_graph_ids:
+                self.mindmap.current_graph_id = remaining_graph_ids[0]
+                self.graph = self.mindmap.graphs[self.mindmap.current_graph_id]
+            else:
+                # Fallback: create empty graph
+                self.graph = ConversationGraph()
+                self.mindmap.add_graph(self.graph)
+        
+        self.storage.save(self.mindmap)
     
 def _make_deepen_title(parent_title: str, user_message: str) -> str:
     cleaned_title = re.sub(r"^(deep dive|deepen|details)\s*[:\-]\s*", "", parent_title, flags=re.I).strip()
