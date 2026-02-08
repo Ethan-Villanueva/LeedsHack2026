@@ -128,14 +128,34 @@ class ConversationManager:
             matched = self._find_matching_block_in_other_graphs(user_message)
             if matched:
                 matched_graph, matched_block, similarity = matched
-                self.graph = matched_graph
-                self.mindmap.current_graph_id = matched_graph.graph_id
-                self.graph.current_block_id = matched_block.block_id
-                target_block = matched_block
-                print(
-                    f"  [MATCH] Redirected tangent to '{matched_block.title}' "
-                    f"(similarity: {similarity:.2f})"
-                )
+                if similarity >= config.thresholds.continue_threshold:
+                    self.graph = matched_graph
+                    self.mindmap.current_graph_id = matched_graph.graph_id
+                    self.graph.current_block_id = matched_block.block_id
+                    target_block = matched_block
+                    print(
+                        f"  [MATCH] Redirected tangent to '{matched_block.title}' "
+                        f"(similarity: {similarity:.2f})"
+                    )
+                else:
+                    self.graph = matched_graph
+                    self.mindmap.current_graph_id = matched_graph.graph_id
+                    self.graph.current_block_id = matched_block.block_id
+                    new_blocks = self._resolve_deepen_blocks(
+                        classification,
+                        matched_block,
+                        user_message,
+                    )
+                    created_blocks = self._create_child_blocks(
+                        matched_block,
+                        new_blocks,
+                    )
+                    target_block = created_blocks[0]
+                    self.graph.current_block_id = target_block.block_id
+                    print(
+                        f"  [MATCH] Created child under '{matched_block.title}' "
+                        f"(similarity: {similarity:.2f})"
+                    )
             else:
                 # Start a new graph with this message as the root block
                 self.graph = ConversationGraph()
@@ -283,6 +303,7 @@ class ConversationManager:
             print(f"  [NEW] Created new block: '{new_block.title}'")
         return created_blocks
     
+   
     def _find_matching_block_in_other_graphs(
         self,
         user_message: str,
@@ -294,8 +315,6 @@ class ConversationManager:
         best_match: Optional[tuple[ConversationGraph, Block, float]] = None
 
         for graph_id, graph in self.mindmap.graphs.items():
-            if graph_id == self.graph.graph_id:
-                continue
             for block in graph.blocks.values():
                 if not block.intent:
                     continue
