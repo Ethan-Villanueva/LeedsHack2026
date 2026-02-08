@@ -16,10 +16,11 @@ from conversation import ConversationManager
 from llm.gemini import GeminiClient
 from config import validate_config
 
-# Initialize backends (lazy - only validate when actually needed)
+# Initialize backends (lazy - only validate when actually needed).
+# Keep LLM and storage cached, but ALWAYS create a fresh ConversationManager
+# so it reloads the latest mindmap state from disk on every request.
 storage = None
 llm_client = None
-conversation_mgr = None
 
 def get_storage():
     """Lazy initialize storage."""
@@ -40,15 +41,17 @@ def get_llm_client():
         llm_client = GeminiClient()
     return llm_client
 
-def get_conversation_manager():
-    """Lazy initialize conversation manager."""
-    global conversation_mgr
-    if conversation_mgr is None:
-        conversation_mgr = ConversationManager(get_llm_client(), get_storage())
-    return conversation_mgr
+def get_conversation_manager() -> ConversationManager:
+    """Return a fresh ConversationManager bound to current storage state."""
+    return ConversationManager(get_llm_client(), get_storage())
 
 
 # ============= Request/Response Models =============
+
+class StartConversationRequest(BaseModel):
+    """Request to start a new conversation."""
+    topic: str
+
 
 class MessageRequest(BaseModel):
     """Request to add a message to a block."""
@@ -59,6 +62,11 @@ class MessageResponse(BaseModel):
     """Response containing block messages."""
     messages: List[Dict[str, Any]]
     current_block_id: str
+
+
+class ChatRequest(BaseModel):
+    """Generic chat request, mirroring CLI logic in main.py."""
+    content: str
 
 
 # ============= Frontend Pages =============
@@ -97,43 +105,81 @@ async def list_mindmaps():
 
 
 @app.post("/api/mindmaps/new")
-async def create_new_mindmap():
+async def create_new_mindmap(payload: StartConversationRequest):
     """
-    Create a new empty mindmap with a root block.
+    Start a new conversation using ConversationManager.
+    Calls manager.start_new_conversation(topic).
     
+    Args:
+        payload: StartConversationRequest with topic
+        
     Returns:
-        New mindmap with root block ready for chat
+        New mindmap with root block and initial response
     """
-    import uuid
-    from models import ConversationGraph
+    mgr = get_conversation_manager()
     
+    # Use manager to start conversation (this creates the graph structure)
+    response_text = mgr.start_new_conversation(payload.topic)
+    
+    # Get the current graph (just created)
     mindmap = get_storage().load()
-    
-    # Create new graph with root block
-    graph = ConversationGraph()
-    root_block = Block(
-        title="New Mindmap",
-        intent="",
-        summary="",
-        key_points=[],
-        open_questions=[],
-    )
-    graph.add_block(root_block)
-    
-    # Add graph to mindmap
-    mindmap.add_graph(graph)
-    mindmap.current_graph_id = graph.graph_id
-    
-    # Save
-    get_storage().save(mindmap)
+    graph = mindmap.graphs.get(mindmap.current_graph_id)
+    root_block = graph.blocks.get(graph.root_block_id)
     
     return {
         "graph_id": graph.graph_id,
         "title": root_block.title,
         "root_block_id": root_block.block_id,
-        "block_count": 1,
-        "message_count": 0,
+        "block_count": len(graph.blocks),
+        "message_count": len(graph.messages),
         "is_current": True,
+        "initial_response": response_text,
+    }
+
+
+@app.post("/api/chat")
+async def chat(payload: ChatRequest):
+    """Simple chat endpoint using ConversationManager like the CLI.
+
+    Logic is equivalent to:
+
+        if not manager.graph or not manager.graph.root_block_id:
+            response = manager.start_new_conversation(user_input)
+        else:
+            response = manager.continue_conversation(user_input)
+    """
+    mgr = get_conversation_manager()
+
+    # Decide whether to start a new conversation or continue the current one
+    if not mgr.graph or not mgr.graph.root_block_id:
+        assistant_response = mgr.start_new_conversation(payload.content)
+    else:
+        assistant_response = mgr.continue_conversation(payload.content)
+
+    # After the call above, ConversationManager has already saved to storage.
+    graph = mgr.graph
+    if not graph:
+        # Should not happen, but keep response predictable
+        raise HTTPException(status_code=500, detail="No active graph after chat call")
+
+    current_block_id = graph.current_block_id or graph.root_block_id
+    messages = graph.get_block_messages(current_block_id) if current_block_id else []
+    messages_list = [
+        {
+            "message_id": msg.message_id,
+            "role": msg.role,
+            "content": msg.content,
+            "timestamp": msg.timestamp,
+        }
+        for msg in messages
+    ]
+
+    return {
+        "graph_id": graph.graph_id,
+        "current_block_id": current_block_id,
+        "graph": graph.to_d3_graph(),
+        "messages": messages_list,
+        "assistant_response": assistant_response,
     }
 
 
@@ -206,7 +252,8 @@ async def get_block_messages(block_id: str):
 @app.post("/api/blocks/{block_id}/messages")
 async def add_message_to_block(block_id: str, payload: MessageRequest, background_tasks: BackgroundTasks):
     """
-    Add a user message to a block and get LLM response.
+    Add a user message to a block and get LLM response using ConversationManager.
+    Calls manager.continue_conversation(content).
     
     Args:
         block_id: ID of the block
@@ -228,46 +275,22 @@ async def add_message_to_block(block_id: str, payload: MessageRequest, backgroun
     if not graph:
         raise HTTPException(status_code=404, detail=f"Block {block_id} not found")
     
-    # Update conversation manager context
+    # Update conversation manager context and use it to continue conversation
     mgr = get_conversation_manager()
     mgr.mindmap = mindmap
     mgr.graph = graph
     mgr.graph.current_block_id = block_id
     
-    # Get block metadata
-    block = graph.blocks[block_id]
-    
-    # Create user message
-    user_msg = ConversationMessage(
-        block_id=block_id,
-        role="user",
-        content=payload.content,
-    )
-    graph.add_message(user_msg)
-    block.add_message_ref(user_msg.message_id)
-    
-    # Get LLM response (for now, synchronous; can be made async with WebSocket)
+    # Use manager to continue conversation
     try:
-        # Build context from block
-        context = f"Block: {block.title}\nIntent: {block.intent}\n\nUser: {payload.content}"
-        response_text = mgr.llm.call(context)
-        
-        # Create assistant message
-        assistant_msg = ConversationMessage(
-            block_id=block_id,
-            role="assistant",
-            content=response_text,
-        )
-        graph.add_message(assistant_msg)
-        block.add_message_ref(assistant_msg.message_id)
-        
-        # Save updated graph
-        get_storage().save(mindmap)
-        
+        response_text = mgr.continue_conversation(payload.content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM error: {str(e)}")
     
-    # Get updated messages
+    # Save updated graph
+    get_storage().save(mindmap)
+    
+    # Get updated messages for this block
     messages = graph.get_block_messages(block_id)
     messages_list = [
         {

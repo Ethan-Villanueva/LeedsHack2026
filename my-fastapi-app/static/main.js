@@ -51,28 +51,18 @@ async function fetchBlockMessages(blockId) {
     }
 }
 
-async function sendMessageToBlock(blockId, content) {
+// Generic chat API using ConversationManager (mirrors CLI logic)
+async function chatWithAssistant(content) {
     try {
-        const response = await fetch(`/api/blocks/${blockId}/messages`, {
+        const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content })
         });
-        if (!response.ok) throw new Error('Failed to send message');
+        if (!response.ok) throw new Error('Failed to send chat message');
         return await response.json();
     } catch (error) {
-        console.error('Error sending message:', error);
-        return null;
-    }
-}
-
-async function switchBlock(blockId) {
-    try {
-        const response = await fetch(`/api/blocks/${blockId}/switch`, { method: 'POST' });
-        if (!response.ok) throw new Error('Failed to switch block');
-        return await response.json();
-    } catch (error) {
-        console.error('Error switching block:', error);
+        console.error('Error in chatWithAssistant:', error);
         return null;
     }
 }
@@ -200,8 +190,7 @@ function drawMindmap(graphData) {
         .attr('stroke-width', 2)
         .style('cursor', 'pointer')
         .on('click', async (event, d) => {
-            // Switch to this block and load its messages
-            await switchBlock(d.id);
+            // Clicking a node just loads its messages into the chat panel.
             await loadBlockMessages(d.id);
             
             // Update current block highlighting
@@ -338,14 +327,21 @@ async function sendMessage() {
 
     if (!message) return;
 
-    // Check for /new command
+    // Check for /new command - prompt for topic and use ConversationManager
     if (message === '/new') {
         input.value = '';
         autoResizeTextarea();
         
-        // Create new mindmap
+        // Prompt user for topic using ConversationManager.start_new_conversation flow
+        const topic = prompt('What would you like to discuss?');
+        if (!topic) return;  // User cancelled
+        
         try {
-            const response = await fetch('/api/mindmaps/new', { method: 'POST' });
+            const response = await fetch('/api/mindmaps/new', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic: topic })
+            });
             if (!response.ok) throw new Error('Failed to create mindmap');
             
             const newMindmap = await response.json();
@@ -374,12 +370,26 @@ async function sendMessage() {
                 await selectMindmap(firstItem, newMindmap.graph_id);
             }
             
-            // Show success message
+            // Show success and initial response from manager.start_new_conversation
             const chatMessages = document.getElementById('chatMessages');
             const sysWrapper = document.createElement('div');
             sysWrapper.className = 'chat-message-wrapper system';
-            sysWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble" style="background-color: #e8f5e9; color: #2e7d32;">✓ New mindmap created: "${newMindmap.title}"</div></div>`;
+            sysWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble" style="background-color: #e8f5e9; color: #2e7d32;">✓ Mindmap created!</div></div>`;
             chatMessages.appendChild(sysWrapper);
+            
+            if (newMindmap.initial_response) {
+                const assistantWrapper = document.createElement('div');
+                assistantWrapper.className = 'chat-message-wrapper assistant';
+                const timestamp = new Date().toLocaleTimeString();
+                assistantWrapper.innerHTML = `
+                    <div class="chat-message">
+                        <div class="chat-bubble">${newMindmap.initial_response}</div>
+                        <div class="chat-timestamp">${timestamp}</div>
+                    </div>
+                `;
+                chatMessages.appendChild(assistantWrapper);
+            }
+            
             chatMessages.scrollTop = chatMessages.scrollHeight;
         } catch (error) {
             console.error('Error creating mindmap:', error);
@@ -459,10 +469,18 @@ messageInput.addEventListener('keypress', (e) => {
     }
 });
 
-// Add mindmap function - creates new mindmap
+// Add mindmap function - creates new mindmap via ConversationManager
 async function addMindmap() {
+    // Prompt user for topic using ConversationManager.start_new_conversation flow
+    const topic = prompt('What would you like to discuss?');
+    if (!topic) return;  // User cancelled
+    
     try {
-        const response = await fetch('/api/mindmaps/new', { method: 'POST' });
+        const response = await fetch('/api/mindmaps/new', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ topic: topic })
+        });
         if (!response.ok) throw new Error('Failed to create mindmap');
         
         const newMindmap = await response.json();
