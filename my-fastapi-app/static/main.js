@@ -51,11 +51,142 @@ async function fetchBlockMessages(blockId) {
     }
 }
 
+async function deleteBlock(blockId) {
+    try {
+        const response = await fetch(`/api/blocks/${blockId}`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Failed to delete block');
+        return await response.json();
+    } catch (error) {
+        console.error('Error deleting block:', error);
+        return null;
+    }
+}
+
 function renderMessageContent(content) {
     if (window.marked) {
         return window.marked.parse(content);
     }
     return content;
+}
+
+function renderMindmapList(mindmaps, activeGraphId) {
+    allMindmaps = mindmaps;
+    const mindmapList = document.querySelector('.mindmap-list');
+    mindmapList.innerHTML = '';
+
+    mindmaps.forEach((mindmap) => {
+        const li = document.createElement('li');
+        li.className = 'mindmap-item' + (mindmap.graph_id === activeGraphId ? ' active' : '');
+        li.dataset.graphId = mindmap.graph_id;
+        li.innerHTML = `
+            <span class="mindmap-title">${mindmap.title}</span>
+            <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
+        `;
+        li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
+        mindmapList.appendChild(li);
+    });
+}
+
+function updateRightHeader(title, intent, blockId) {
+    const rightHeader = document.querySelector('.right-panel-header');
+    const canDelete = blockId && currentGraphData && blockId !== currentGraphData.root_block_id;
+    const safeTitle = title || 'AI Chat';
+    const safeIntent = intent || 'No intent';
+
+    rightHeader.innerHTML = `
+        <div class="right-header-content">
+            <div>
+                <h3>${safeTitle}</h3>
+                <p class="right-header-subtitle">${safeIntent}</p>
+            </div>
+            <button class="delete-block-btn${canDelete ? '' : ' hidden'}" type="button" onclick="deleteCurrentBlock()" aria-label="Delete block">x</button>
+        </div>
+    `;
+}
+
+function updateRightHeaderFromGraph() {
+    if (!currentGraphData || !currentBlockId) return;
+    const node = currentGraphData.nodes?.find(n => n.id === currentBlockId);
+    if (!node) return;
+    updateRightHeader(node.label, node.intent, currentBlockId);
+}
+
+function getDescendantCount(blockId) {
+    if (!currentGraphData || !currentGraphData.links) return 0;
+    const childrenMap = new Map();
+    const getId = (value) => (typeof value === 'object' && value ? value.id : value);
+
+    currentGraphData.links.forEach(link => {
+        const sourceId = getId(link.source);
+        const targetId = getId(link.target);
+        if (!childrenMap.has(sourceId)) {
+            childrenMap.set(sourceId, []);
+        }
+        childrenMap.get(sourceId).push(targetId);
+    });
+
+    const visited = new Set();
+    const stack = [...(childrenMap.get(blockId) || [])];
+    while (stack.length) {
+        const current = stack.pop();
+        if (visited.has(current)) continue;
+        visited.add(current);
+        const children = childrenMap.get(current) || [];
+        stack.push(...children);
+    }
+
+    return visited.size;
+}
+
+async function deleteCurrentBlock() {
+    if (!currentBlockId || !currentGraphData) return;
+    if (currentBlockId === currentGraphData.root_block_id) {
+        alert('You cannot delete the root block.');
+        return;
+    }
+
+    const descendantCount = getDescendantCount(currentBlockId);
+    const warning = descendantCount > 0
+        ? `This will delete this block and ${descendantCount} descendant(s). Continue?`
+        : 'Delete this block?';
+
+    if (!confirm(warning)) return;
+
+    const result = await deleteBlock(currentBlockId);
+    if (!result) return;
+
+    currentGraphId = result.graph_id;
+    currentMindmapId = result.graph_id;
+    currentBlockId = result.current_block_id;
+    currentGraphData = result.graph;
+
+    if (result.graph) {
+        drawMindmap(result.graph);
+    }
+
+    const mindmaps = await fetchMindmaps();
+    renderMindmapList(mindmaps, currentGraphId);
+    updateRightHeaderFromGraph();
+
+    const chatMessages = document.getElementById('chatMessages');
+    chatMessages.innerHTML = '';
+    result.messages.forEach(msg => {
+        const roleClass = msg.role === 'assistant' ? 'bot' : msg.role;
+        const wrapper = document.createElement('div');
+        wrapper.className = `chat-message-wrapper ${roleClass}`;
+        const timestamp = new Date(msg.timestamp * 1000).toLocaleTimeString();
+        wrapper.innerHTML = `
+            <div class="chat-message">
+                <div class="chat-bubble">${renderMessageContent(msg.content)}</div>
+                <div class="chat-timestamp">${timestamp}</div>
+            </div>
+        `;
+        chatMessages.appendChild(wrapper);
+    });
+
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 // Generic chat API using ConversationManager (mirrors CLI logic)
@@ -156,6 +287,7 @@ async function selectMindmap(element, graphId) {
             currentBlockId = rootBlock.id;  // Set current block to root
         }
         drawMindmap(graphData);
+        updateRightHeaderFromGraph();
         
         // Load initial block messages
         if (graphData.root_block_id) {
@@ -267,11 +399,6 @@ function drawMindmap(graphData) {
 window.addEventListener('load', async () => {
     // Load mindmaps from API
     const mindmaps = await fetchMindmaps();
-    allMindmaps = mindmaps;
-    
-    // Populate mindmap list
-    const mindmapList = document.querySelector('.mindmap-list');
-    mindmapList.innerHTML = '';
     
     if (mindmaps.length === 0) {
         // Show empty state with instruction to create new mindmap
@@ -288,29 +415,22 @@ window.addEventListener('load', async () => {
             .text('No mindmaps. Type "/new" to create one.');
         
         // Show placeholder in right panel
-        const rightHeader = document.querySelector('.right-panel-header');
-        rightHeader.innerHTML = '<h3>Ready to chat</h3>';
+        updateRightHeader('Ready to chat', '', null);
         const chatMessages = document.getElementById('chatMessages');
         chatMessages.innerHTML = '<div style="color: #999; text-align: center; margin-top: 20px;">Create a mindmap with /new to start</div>';
         return;
     }
     
-    // Populate mindmap list
-    mindmaps.forEach((mindmap, index) => {
-        const li = document.createElement('li');
-        li.className = 'mindmap-item' + (mindmap.is_current ? ' active' : '');
-        li.dataset.graphId = mindmap.graph_id;
-        li.innerHTML = `
-            <span class="mindmap-title">${mindmap.title}</span>
-            <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
-        `;
-        li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
-        mindmapList.appendChild(li);
-        
-        if (index === 0 || mindmap.is_current) {
-            selectMindmap(li, mindmap.graph_id);
+    const activeGraphId = mindmaps.find(m => m.is_current)?.graph_id || mindmaps[0]?.graph_id;
+    renderMindmapList(mindmaps, activeGraphId);
+
+    if (activeGraphId) {
+        const activeItem = Array.from(document.querySelectorAll('.mindmap-item'))
+            .find(item => item.dataset.graphId === activeGraphId);
+        if (activeItem) {
+            selectMindmap(activeItem, activeGraphId);
         }
-    });
+    }
 });
 
 // Load block messages and display in right panel
@@ -321,8 +441,7 @@ async function loadBlockMessages(blockId) {
     currentBlockId = blockId;
     
     // Update right panel header
-    const rightHeader = document.querySelector('.right-panel-header');
-    rightHeader.innerHTML = `<h3>${blockData.title}</h3><p style="font-size: 12px; color: #666;">${blockData.intent || 'No intent'}</p>`;
+    updateRightHeader(blockData.title, blockData.intent, blockId);
     
     // Clear and populate messages
     const chatMessages = document.getElementById('chatMessages');
@@ -399,27 +518,15 @@ async function sendMessage() {
 
     // Refresh mindmap list and update active selection
     const mindmaps = await fetchMindmaps();
-    allMindmaps = mindmaps;
-    const mindmapList = document.querySelector('.mindmap-list');
-    mindmapList.innerHTML = '';
-
-    mindmaps.forEach((mindmap) => {
-        const li = document.createElement('li');
-        li.className = 'mindmap-item' + (mindmap.graph_id === currentGraphId ? ' active' : '');
-        li.dataset.graphId = mindmap.graph_id;
-        li.innerHTML = `
-            <span class="mindmap-title">${mindmap.title}</span>
-            <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
-        `;
-        li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
-        mindmapList.appendChild(li);
-    });
+    renderMindmapList(mindmaps, currentGraphId);
 
     // Redraw mindmap from returned graph
     if (result.graph) {
         currentGraphData = result.graph;
         drawMindmap(result.graph);
     }
+
+    updateRightHeaderFromGraph();
 
     // Replace chat panel with full message history for current block
     chatMessages.innerHTML = '';
@@ -473,30 +580,15 @@ async function addMindmap() {
 
     // Refresh mindmap list from storage
     const mindmaps = await fetchMindmaps();
-    allMindmaps = mindmaps;
-
-    const mindmapList = document.querySelector('.mindmap-list');
-    mindmapList.innerHTML = '';
-
-    mindmaps.forEach((mindmap) => {
-        const li = document.createElement('li');
-        li.className = 'mindmap-item' + (mindmap.is_current ? ' active' : '');
-        li.dataset.graphId = mindmap.graph_id;
-        li.innerHTML = `
-            <span class="mindmap-title">${mindmap.title}</span>
-            <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
-        `;
-        li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
-        mindmapList.appendChild(li);
-    });
+    renderMindmapList(mindmaps, currentGraphId);
 
     // Select the new mindmap visually and refresh middle panel
-    const newItem = Array.from(mindmapList.querySelectorAll('.mindmap-item'))
+    const newItem = Array.from(document.querySelectorAll('.mindmap-item'))
         .find(item => item.dataset.graphId === currentGraphId);
     if (newItem) {
         await selectMindmap(newItem, currentGraphId);
     } else {
-        await selectMindmap(mindmapList.querySelector('.mindmap-item'), currentGraphId);
+        await selectMindmap(document.querySelector('.mindmap-item'), currentGraphId);
     }
 }
 
