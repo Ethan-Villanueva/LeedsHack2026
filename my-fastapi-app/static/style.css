@@ -258,6 +258,139 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+.ui-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 2000;
+}
+
+.ui-modal.hidden {
+    display: none;
+}
+
+.ui-modal.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ui-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.ui-modal-dialog {
+    position: relative;
+    background: white;
+    border: 2px solid black;
+    border-radius: 16px;
+    width: min(90vw, 520px);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25);
+    transform: translateY(8px);
+    transition: transform 0.2s ease;
+    padding: 1.25rem 1.5rem;
+}
+
+.ui-modal.is-visible .ui-modal-dialog {
+    transform: translateY(0);
+}
+
+.ui-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.ui-modal-header h2 {
+    font-size: 1.25rem;
+    margin: 0;
+}
+
+.ui-modal-close {
+    background: none;
+    border: 2px solid black;
+    border-radius: 10px;
+    width: 32px;
+    height: 32px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ui-modal-close:hover {
+    background: var(--ready-salted);
+    color: white;
+    border-color: var(--ready-salted);
+}
+
+.ui-modal-body {
+    font-family: 'Nunito Sans', sans-serif;
+    color: black;
+    margin-bottom: 1rem;
+}
+
+.ui-modal-body p {
+    margin: 0 0 0.75rem 0;
+}
+
+.ui-modal-input {
+    width: 100%;
+    border: 2px solid black;
+    border-radius: 12px;
+    padding: 0.6rem 0.75rem;
+    font-family: 'Nunito Sans', sans-serif;
+    display: none;
+}
+
+.ui-modal-input.is-visible {
+    display: block;
+}
+
+.ui-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+.ui-modal-button {
+    padding: 0.6rem 1.2rem;
+    border-radius: 999px;
+    border: 2px solid black;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ui-modal-button.primary {
+    background: black;
+    color: white;
+}
+
+.ui-modal-button.primary:hover {
+    background: var(--prawn-cocktail);
+    color: black;
+}
+
+.ui-modal-button.secondary {
+    background: white;
+    color: black;
+}
+
+.ui-modal-button.secondary:hover {
+    background: var(--hint-of-prawn);
+}
+
+.ui-modal-button.is-hidden {
+    display: none;
+}
+
 .mindmap-item:hover {
     background-color: var(--prawn-cocktail);
     color: black;

@@ -16,6 +16,146 @@ let allMindmaps = [];
 let currentGraphData = null;
 let simulation = null;
 
+const modal = document.getElementById('ui-modal');
+const modalTitle = document.getElementById('ui-modal-title');
+const modalMessage = document.getElementById('ui-modal-message');
+const modalInput = document.getElementById('ui-modal-input');
+const modalConfirm = document.getElementById('ui-modal-confirm');
+const modalCancel = document.getElementById('ui-modal-cancel');
+const modalClose = document.querySelector('.ui-modal-close');
+const modalBackdrop = document.querySelector('[data-modal-close]');
+let modalResolve = null;
+
+function showModal(options) {
+    if (!modal) {
+        if (options.type === 'confirm') return Promise.resolve(false);
+        if (options.type === 'prompt') return Promise.resolve(null);
+        return Promise.resolve();
+    }
+
+    const type = options.type || 'alert';
+    modal.dataset.type = type;
+    modalTitle.textContent = options.title || 'Notice';
+    modalMessage.textContent = options.message || '';
+    modalConfirm.textContent = options.confirmText || 'OK';
+    modalCancel.textContent = options.cancelText || 'Cancel';
+
+    const showInput = type === 'prompt';
+    modalInput.classList.toggle('is-visible', showInput);
+    if (showInput) {
+        modalInput.value = options.defaultValue || '';
+        modalInput.placeholder = options.placeholder || '';
+    }
+
+    modalCancel.classList.toggle('is-hidden', type === 'alert');
+
+    modal.classList.remove('hidden');
+    requestAnimationFrame(() => modal.classList.add('is-visible'));
+    modal.setAttribute('aria-hidden', 'false');
+
+    setTimeout(() => {
+        if (showInput) {
+            modalInput.focus();
+            modalInput.select();
+        } else {
+            modalConfirm.focus();
+        }
+    }, 0);
+
+    return new Promise((resolve) => {
+        modalResolve = resolve;
+    });
+}
+
+function closeModal(result) {
+    if (!modal) return;
+    modal.classList.remove('is-visible');
+    modal.setAttribute('aria-hidden', 'true');
+    window.setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 200);
+
+    if (modalResolve) {
+        const resolve = modalResolve;
+        modalResolve = null;
+        resolve(result);
+    }
+}
+
+function handleModalCancel() {
+    if (!modal) return;
+    const type = modal.dataset.type;
+    if (type === 'prompt') {
+        closeModal(null);
+        return;
+    }
+    if (type === 'confirm') {
+        closeModal(false);
+        return;
+    }
+    closeModal();
+}
+
+function handleModalConfirm() {
+    if (!modal) return;
+    const type = modal.dataset.type;
+    if (type === 'prompt') {
+        closeModal(modalInput.value.trim());
+        return;
+    }
+    if (type === 'confirm') {
+        closeModal(true);
+        return;
+    }
+    closeModal();
+}
+
+if (modalConfirm) {
+    modalConfirm.addEventListener('click', handleModalConfirm);
+}
+
+if (modalCancel) {
+    modalCancel.addEventListener('click', handleModalCancel);
+}
+
+if (modalClose) {
+    modalClose.addEventListener('click', handleModalCancel);
+}
+
+if (modalBackdrop) {
+    modalBackdrop.addEventListener('click', handleModalCancel);
+}
+
+document.addEventListener('keydown', (event) => {
+    if (!modal || !modal.classList.contains('is-visible')) return;
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        handleModalCancel();
+    }
+    if (event.key === 'Enter' && modal.dataset.type === 'prompt') {
+        event.preventDefault();
+        handleModalConfirm();
+    }
+});
+
+async function showAlert(message, title = 'Notice') {
+    await showModal({ type: 'alert', title, message, confirmText: 'OK' });
+}
+
+async function showConfirm(message, title = 'Confirm', confirmText = 'Confirm', cancelText = 'Cancel') {
+    return await showModal({ type: 'confirm', title, message, confirmText, cancelText });
+}
+
+async function showPrompt(
+    message,
+    title = 'New mindmap',
+    placeholder = '',
+    confirmText = 'Create',
+    cancelText = 'Cancel'
+) {
+    return await showModal({ type: 'prompt', title, message, placeholder, confirmText, cancelText });
+}
+
 // API Functions
 async function fetchMindmaps() {
     try {
@@ -182,7 +322,7 @@ function getDescendantCount(blockId) {
 async function deleteCurrentBlock() {
     if (!currentBlockId || !currentGraphData) return;
     if (currentBlockId === currentGraphData.root_block_id) {
-        alert('You cannot delete the root block.');
+        await showAlert('You cannot delete the root block.', 'Cannot delete');
         return;
     }
 
@@ -191,7 +331,8 @@ async function deleteCurrentBlock() {
         ? `This will delete this block and ${descendantCount} descendant(s). Continue?`
         : 'Delete this block?';
 
-    if (!confirm(warning)) return;
+    const shouldDelete = await showConfirm(warning, 'Delete block', 'Delete');
+    if (!shouldDelete) return;
 
     const result = await deleteBlock(currentBlockId);
     if (!result) return;
@@ -610,7 +751,7 @@ messageInput.addEventListener('keypress', (e) => {
 
 // Add mindmap function - starts a new conversation via /api/chat
 async function addMindmap() {
-    const topic = prompt('What would you like to discuss?');
+    const topic = await showPrompt('What would you like to discuss?', 'New mindmap', 'Mindmap topic');
     if (!topic) return;  // User cancelled
 
     const chatMessages = document.getElementById('chatMessages');
@@ -668,9 +809,14 @@ async function addMindmap() {
 }
 
 // Delete mindmap function (not implemented)
-function deleteMindmap(event, graphId) {
+async function deleteMindmap(event, graphId) {
     event.stopPropagation();
-    if (!confirm('Delete this mindmap? This will remove all its blocks and messages.')) {
+    const shouldDelete = await showConfirm(
+        'Delete this mindmap? This will remove all its blocks and messages.',
+        'Delete mindmap',
+        'Delete'
+    );
+    if (!shouldDelete) {
         return;
     }
 
