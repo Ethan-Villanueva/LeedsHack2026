@@ -35,9 +35,9 @@
                 <div class="panel-content">
                     <ul class="mindmap-list">
                         {% for mindmap in mindmaps %}
-                            <li class="mindmap-item {% if loop.first %}active{% endif %}" onclick="selectMindmap(this, '{{ mindmap.title }}', {{ mindmap.id }})">
+                            li class="mindmap-item {% if loop.first %}active{% endif %}" onclick="selectMindmap(this, '{{ mindmap.graph_id }}')">
                                 <span class="mindmap-title">{{ mindmap.title }}</span>
-                                <button class="mindmap-delete-btn" onclick="deleteMindmap(event, {{ mindmap.id }})">×</button>
+                                <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '{{ mindmap.graph_id }}')"></button>
                             </li>
                         {% endfor %}
                     </ul>
@@ -59,7 +59,7 @@
 
             <!-- Right Panel: Chat -->
             <div class="right-panel panel">
-                <div class="panel-header">AI Chat</div>
+                <div class="panel-header right-panel-header">AI Chat</div>
                 <div class="chat-messages" id="chatMessages">
                     {% for msg in messages %}
                         <div class="chat-message-wrapper {{ msg.sender }}">

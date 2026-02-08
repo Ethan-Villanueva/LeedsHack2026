@@ -74,7 +74,23 @@ class ChatRequest(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Render the home page."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    mindmap = get_storage().load()
+    mindmaps_list = []
+    for graph_id, graph in mindmap.graphs.items():
+        root_block = graph.blocks.get(graph.root_block_id)
+        mindmaps_list.append({
+            "graph_id": graph_id,
+            "title": root_block.title if root_block else "Untitled",
+        })
+
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "mindmaps": mindmaps_list,
+            "messages": [],
+        },
+    )
 
 
 # ============= REST API Endpoints =============
