@@ -327,90 +327,16 @@ async function sendMessage() {
 
     if (!message) return;
 
-    // Check for /new command - prompt for topic and use ConversationManager
+    // Treat /new as a shortcut to "start a new conversation" via chat endpoint
     if (message === '/new') {
         input.value = '';
         autoResizeTextarea();
-        
-        // Prompt user for topic using ConversationManager.start_new_conversation flow
-        const topic = prompt('What would you like to discuss?');
-        if (!topic) return;  // User cancelled
-        
-        try {
-            const response = await fetch('/api/mindmaps/new', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ topic: topic })
-            });
-            if (!response.ok) throw new Error('Failed to create mindmap');
-            
-            const newMindmap = await response.json();
-            
-            // Refresh mindmap list
-            const mindmaps = await fetchMindmaps();
-            allMindmaps = mindmaps;
-            
-            const mindmapList = document.querySelector('.mindmap-list');
-            mindmapList.innerHTML = '';
-            
-            mindmaps.forEach((mindmap, index) => {
-                const li = document.createElement('li');
-                li.className = 'mindmap-item' + (mindmap.is_current ? ' active' : '');
-                li.innerHTML = `
-                    <span class="mindmap-title">${mindmap.title}</span>
-                    <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
-                `;
-                li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
-                mindmapList.appendChild(li);
-            });
-            
-            // Select the new mindmap
-            const firstItem = mindmapList.querySelector('.mindmap-item');
-            if (firstItem) {
-                await selectMindmap(firstItem, newMindmap.graph_id);
-            }
-            
-            // Show success and initial response from manager.start_new_conversation
-            const chatMessages = document.getElementById('chatMessages');
-            const sysWrapper = document.createElement('div');
-            sysWrapper.className = 'chat-message-wrapper system';
-            sysWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble" style="background-color: #e8f5e9; color: #2e7d32;">✓ Mindmap created!</div></div>`;
-            chatMessages.appendChild(sysWrapper);
-            
-            if (newMindmap.initial_response) {
-                const assistantWrapper = document.createElement('div');
-                assistantWrapper.className = 'chat-message-wrapper assistant';
-                const timestamp = new Date().toLocaleTimeString();
-                assistantWrapper.innerHTML = `
-                    <div class="chat-message">
-                        <div class="chat-bubble">${newMindmap.initial_response}</div>
-                        <div class="chat-timestamp">${timestamp}</div>
-                    </div>
-                `;
-                chatMessages.appendChild(assistantWrapper);
-            }
-            
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        } catch (error) {
-            console.error('Error creating mindmap:', error);
-            const chatMessages = document.getElementById('chatMessages');
-            const errWrapper = document.createElement('div');
-            errWrapper.className = 'chat-message-wrapper system';
-            errWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble" style="background-color: #ffebee; color: #c62828;">✗ Error creating mindmap</div></div>`;
-            chatMessages.appendChild(errWrapper);
-        }
-        return;
-    }
-
-    // Regular message - require a mindmap to exist
-    if (!currentBlockId) {
-        alert('Please create a mindmap with /new or select one from the list');
-        return;
+        return addMindmap();
     }
 
     const chatMessages = document.getElementById('chatMessages');
 
-    // Add user message with new wrapper structure
+    // Optimistic user message
     const userWrapper = document.createElement('div');
     userWrapper.className = 'chat-message-wrapper user';
     userWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble">${message}</div><div class="chat-timestamp">Just now</div></div>`;
@@ -419,34 +345,34 @@ async function sendMessage() {
     input.value = '';
     autoResizeTextarea();
 
-    // Send to API
-    const result = await sendMessageToBlock(currentBlockId, message);
-    
-    if (result && result.messages) {
-        // Show loading indicator
-        const loadingWrapper = document.createElement('div');
-        loadingWrapper.className = 'chat-message-wrapper bot';
-        loadingWrapper.id = 'loading-message';
-        loadingWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble">thinking...</div></div>`;
-        chatMessages.appendChild(loadingWrapper);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        
-        // Replace with actual response (already in result.messages)
-        setTimeout(() => {
-            // Load messages again to get latest
-            loadBlockMessages(currentBlockId);
-            
-            // Refresh graph data to show any updates
-            if (currentGraphId) {
-                fetchGraphData(currentGraphId).then(graphData => {
-                    if (graphData) {
-                        currentGraphData = graphData;
-                        drawMindmap(graphData);
-                    }
-                });
-            }
-        }, 500);
+    const result = await chatWithAssistant(message);
+    if (!result) return;
+
+    // Update current graph and block from response
+    currentGraphId = result.graph_id;
+    currentMindmapId = result.graph_id;
+    currentBlockId = result.current_block_id;
+
+    // Redraw mindmap from returned graph
+    if (result.graph) {
+        currentGraphData = result.graph;
+        drawMindmap(result.graph);
     }
+
+    // Replace chat panel with full message history for current block
+    chatMessages.innerHTML = '';
+    result.messages.forEach(msg => {
+        const wrapper = document.createElement('div');
+        wrapper.className = `chat-message-wrapper ${msg.role}`;
+        const timestamp = new Date(msg.timestamp * 1000).toLocaleTimeString();
+        wrapper.innerHTML = `
+            <div class="chat-message">
+                <div class="chat-bubble">${msg.content}</div>
+                <div class="chat-timestamp">${timestamp}</div>
+            </div>
+        `;
+        chatMessages.appendChild(wrapper);
+    });
 
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
@@ -469,48 +395,41 @@ messageInput.addEventListener('keypress', (e) => {
     }
 });
 
-// Add mindmap function - creates new mindmap via ConversationManager
+// Add mindmap function - starts a new conversation via /api/chat
 async function addMindmap() {
-    // Prompt user for topic using ConversationManager.start_new_conversation flow
     const topic = prompt('What would you like to discuss?');
     if (!topic) return;  // User cancelled
-    
-    try {
-        const response = await fetch('/api/mindmaps/new', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topic: topic })
-        });
-        if (!response.ok) throw new Error('Failed to create mindmap');
-        
-        const newMindmap = await response.json();
-        
-        // Refresh mindmap list
-        const mindmaps = await fetchMindmaps();
-        allMindmaps = mindmaps;
-        
-        const mindmapList = document.querySelector('.mindmap-list');
-        mindmapList.innerHTML = '';
-        
-        mindmaps.forEach((mindmap) => {
-            const li = document.createElement('li');
-            li.className = 'mindmap-item' + (mindmap.is_current ? ' active' : '');
-            li.innerHTML = `
-                <span class="mindmap-title">${mindmap.title}</span>
-                <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
-            `;
-            li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
-            mindmapList.appendChild(li);
-        });
-        
-        // Select the new mindmap
-        const firstItem = mindmapList.querySelector('.mindmap-item');
-        if (firstItem) {
-            await selectMindmap(firstItem, newMindmap.graph_id);
-        }
-    } catch (error) {
-        console.error('Error creating mindmap:', error);
-        alert('Failed to create new mindmap');
+
+    const result = await chatWithAssistant(topic);
+    if (!result) return;
+
+    // Update current graph and block
+    currentGraphId = result.graph_id;
+    currentMindmapId = result.graph_id;
+    currentBlockId = result.current_block_id;
+
+    // Refresh mindmap list from storage
+    const mindmaps = await fetchMindmaps();
+    allMindmaps = mindmaps;
+
+    const mindmapList = document.querySelector('.mindmap-list');
+    mindmapList.innerHTML = '';
+
+    mindmaps.forEach((mindmap) => {
+        const li = document.createElement('li');
+        li.className = 'mindmap-item' + (mindmap.is_current ? ' active' : '');
+        li.innerHTML = `
+            <span class="mindmap-title">${mindmap.title}</span>
+            <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
+        `;
+        li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
+        mindmapList.appendChild(li);
+    });
+
+    // Select the new mindmap visually
+    const firstItem = mindmapList.querySelector('.mindmap-item');
+    if (firstItem) {
+        await selectMindmap(firstItem, currentGraphId);
     }
 }
 
