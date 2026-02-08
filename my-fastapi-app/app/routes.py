@@ -353,6 +353,58 @@ async def switch_to_block(block_id: str):
     raise HTTPException(status_code=404, detail=f"Block {block_id} not found")
 
 
+@app.delete("/api/blocks/{block_id}")
+async def delete_block(block_id: str):
+    """
+    Delete a block and all its descendants.
+    """
+    mindmap = get_storage().load()
+
+    graph = None
+    for gid, g in mindmap.graphs.items():
+        if block_id in g.blocks:
+            graph = g
+            mindmap.current_graph_id = gid
+            break
+
+    if not graph:
+        raise HTTPException(status_code=404, detail=f"Block {block_id} not found")
+
+    mgr = get_conversation_manager()
+    mgr.mindmap = mindmap
+    mgr.graph = graph
+
+    try:
+        mgr.delete_block(block_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    # Reload updated mindmap after deletion
+    mindmap = get_storage().load()
+    graph = mindmap.graphs.get(mindmap.current_graph_id)
+    if not graph:
+        raise HTTPException(status_code=500, detail="No active graph after delete")
+
+    current_block_id = graph.current_block_id or graph.root_block_id
+    messages = graph.get_block_messages(current_block_id) if current_block_id else []
+    messages_list = [
+        {
+            "message_id": msg.message_id,
+            "role": msg.role,
+            "content": msg.content,
+            "timestamp": msg.timestamp,
+        }
+        for msg in messages
+    ]
+
+    return {
+        "graph_id": graph.graph_id,
+        "current_block_id": current_block_id,
+        "graph": graph.to_d3_graph(),
+        "messages": messages_list,
+    }
+
+
 @app.post("/api/mindmaps/{graph_id}/switch")
 async def switch_mindmap(graph_id: str):
     """
