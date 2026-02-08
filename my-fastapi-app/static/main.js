@@ -601,7 +601,7 @@ window.addEventListener('load', async () => {
         // Show placeholder in right panel
         updateRightHeader('Ready to chat', '', null);
         const chatMessages = document.getElementById('chatMessages');
-        chatMessages.innerHTML = '<div style="color: #999; text-align: center; margin-top: 20px;">Create a mindmap with /new to start</div>';
+        chatMessages.innerHTML = '<div style="color: #999; text-align: center; margin-top: 20px;">Click the Add Mindmap button to start</div>';
         return;
     }
     
