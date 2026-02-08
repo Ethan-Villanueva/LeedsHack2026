@@ -613,8 +613,40 @@ async function addMindmap() {
     const topic = prompt('What would you like to discuss?');
     if (!topic) return;  // User cancelled
 
+    const chatMessages = document.getElementById('chatMessages');
+
+    // Echo the user's topic in the chat panel.
+    const userWrapper = document.createElement('div');
+    userWrapper.className = 'chat-message-wrapper user';
+    userWrapper.innerHTML = `
+        <div class="chat-message">
+            <div class="chat-bubble">${topic}</div>
+            <div class="chat-timestamp">Just now</div>
+        </div>
+    `;
+    chatMessages.appendChild(userWrapper);
+
+    // Show thinking indicator while waiting for the assistant response.
+    const thinkingWrapper = document.createElement('div');
+    thinkingWrapper.className = 'chat-message-wrapper bot thinking';
+    thinkingWrapper.innerHTML = `
+        <div class="chat-message">
+            <div class="chat-bubble">
+                <span class="thinking-dots" aria-label="AI is thinking">
+                    <span></span><span></span><span></span>
+                </span>
+            </div>
+            <div class="chat-timestamp">Thinking...</div>
+        </div>
+    `;
+    chatMessages.appendChild(thinkingWrapper);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
     const result = await createMindmap(topic);
-    if (!result) return;
+    if (!result) {
+        thinkingWrapper.querySelector('.chat-bubble').textContent = 'Sorry, something went wrong.';
+        return;
+    }
 
     // Update current graph and block
     currentGraphId = result.graph_id;
