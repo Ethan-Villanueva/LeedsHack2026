@@ -64,6 +64,19 @@ async function deleteBlock(blockId) {
     }
 }
 
+async function deleteMindmapRequest(graphId) {
+    try {
+        const response = await fetch(`/api/mindmaps/${graphId}`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Failed to delete mindmap');
+        return await response.json();
+    } catch (error) {
+        console.error('Error deleting mindmap:', error);
+        return null;
+    }
+}
+
 function renderMessageContent(content) {
     if (window.marked) {
         return window.marked.parse(content);
@@ -595,5 +608,43 @@ async function addMindmap() {
 // Delete mindmap function (not implemented)
 function deleteMindmap(event, graphId) {
     event.stopPropagation();
-    alert('Mindmap deletion is not yet implemented. Use the CLI to manage mindmaps.');
+    if (!confirm('Delete this mindmap? This will remove all its blocks and messages.')) {
+        return;
+    }
+
+    deleteMindmapRequest(graphId).then(async (result) => {
+        if (!result) return;
+
+        const mindmaps = await fetchMindmaps();
+        if (mindmaps.length === 0) {
+            renderMindmapList([], '');
+            currentGraphId = null;
+            currentMindmapId = null;
+            currentBlockId = null;
+            currentGraphData = null;
+            document.getElementById('mindmapTitle').textContent = 'Graph';
+            const svg = d3.select('#mindmapSvg');
+            svg.selectAll('*').remove();
+            svg.append('text')
+                .attr('x', '50%')
+                .attr('y', '50%')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '0.3em')
+                .attr('fill', '#999')
+                .attr('font-size', '16px')
+                .text('No mindmaps. Type "/new" to create one.');
+            updateRightHeader('Ready to chat', '', null);
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = '<div style="color: #999; text-align: center; margin-top: 20px;">Create a mindmap with /new to start</div>';
+            return;
+        }
+
+        const nextGraphId = result.current_graph_id || mindmaps[0].graph_id;
+        renderMindmapList(mindmaps, nextGraphId);
+        const nextItem = Array.from(document.querySelectorAll('.mindmap-item'))
+            .find(item => item.dataset.graphId === nextGraphId);
+        if (nextItem) {
+            await selectMindmap(nextItem, nextGraphId);
+        }
+    });
 }

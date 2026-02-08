@@ -428,3 +428,26 @@ async def switch_mindmap(graph_id: str):
         "graph_id": graph_id,
         "success": True,
     }
+
+
+@app.delete("/api/mindmaps/{graph_id}")
+async def delete_mindmap(graph_id: str):
+    """
+    Delete a mindmap (graph) and all its blocks/messages.
+    """
+    mindmap = get_storage().load()
+
+    if graph_id not in mindmap.graphs:
+        raise HTTPException(status_code=404, detail=f"Graph {graph_id} not found")
+
+    del mindmap.graphs[graph_id]
+
+    if mindmap.current_graph_id == graph_id:
+        mindmap.current_graph_id = next(iter(mindmap.graphs.keys()), "")
+
+    get_storage().save(mindmap)
+
+    return {
+        "success": True,
+        "current_graph_id": mindmap.current_graph_id,
+    }
