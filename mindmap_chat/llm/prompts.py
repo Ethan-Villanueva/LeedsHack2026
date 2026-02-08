@@ -36,7 +36,13 @@ Respond ONLY with valid JSON (no markdown, no extra text):
     {{"title": "title for child/tangent block", "intent": "intent statement"}},
     {{"title": "title for another child", "intent": "intent statement"}}
   ]
-}}"""
+}}
+
+Constraints:
+- Output must be a single JSON object and nothing else.
+- Strings must be fully quoted and on one line (escape newlines).
+- If there are no new blocks, return "new_blocks": [].
+"""
 
 
 def prompt_generate_block_summary(block_intent: str, conversation_turns: str) -> str:

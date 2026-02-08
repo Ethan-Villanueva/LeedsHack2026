@@ -4,7 +4,7 @@ Allows easy swapping of different LLM providers.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import json
 
 
@@ -52,5 +52,99 @@ class LLMClient(ABC):
         try:
             return json.loads(response)
         except json.JSONDecodeError:
+            extracted = _extract_json_payload(response)
+            if extracted is not None:
+                try:
+                    return json.loads(extracted)
+                except json.JSONDecodeError:
+                    repaired = _repair_json_payload(extracted)
+                    if repaired is not None:
+                        return json.loads(repaired)
+            repaired = _repair_json_payload(response)
+            if repaired is not None:
+                return json.loads(repaired)
             print(f"Failed to parse JSON response: {response}")
             raise
+
+def _extract_json_payload(response: str) -> Optional[str]:
+    if not response:
+        return None
+    stripped = response.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        return stripped
+    start = response.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_string = False
+    escape = False
+    for idx in range(start, len(response)):
+        char = response[idx]
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return response[start:idx + 1].strip()
+    return None
+
+
+def _repair_json_payload(response: str) -> Optional[str]:
+    if not response:
+        return None
+    start = response.find("{")
+    if start == -1:
+        return None
+    snippet = response[start:]
+    cleaned_chars = []
+    depth = 0
+    in_string = False
+    escape = False
+    for char in snippet:
+        if in_string:
+            if escape:
+                escape = False
+                cleaned_chars.append(char)
+                continue
+            if char == "\\":
+                escape = True
+                cleaned_chars.append(char)
+                continue
+            if char == "\n":
+                cleaned_chars.append("\\n")
+                continue
+            if char == '"':
+                in_string = False
+                cleaned_chars.append(char)
+                continue
+            cleaned_chars.append(char)
+            continue
+        if char == '"':
+            in_string = True
+            cleaned_chars.append(char)
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth = max(depth - 1, 0)
+        cleaned_chars.append(char)
+
+    if in_string:
+        cleaned_chars.append('"')
+    if depth > 0:
+        cleaned_chars.append("}" * depth)
+    repaired = "".join(cleaned_chars).strip()
+    if not repaired.startswith("{") or not repaired.endswith("}"):
+        return None
+    return repaired

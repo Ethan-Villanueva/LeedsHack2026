@@ -4,9 +4,10 @@ Ties together all modules for the core functionality.
 """
 
 from typing import Optional
+import re
 from llm.base import LLMClient
 from llm import prompts
-from models import ConversationGraph, ConversationMessage, Block, Mindmap
+from models import ConversationGraph, ConversationMessage, Block, Mindmap, BlockClassification
 from core import (
     detect_intent_shift,
     create_root_block,
@@ -110,11 +111,27 @@ class ConversationManager:
         print(f"  [REASON] {classification.reasoning}")
         
         # Handle classification
-        if classification.action in ["continue", "deepen"]:
+        if classification.action == "continue":
             # Stay in current block
             target_block = current_block
-        
-        elif classification.action in ["new_child", "tangent"]:
+
+        elif classification.action == "deepen":
+            # Create child block(s) for a deeper dive
+            new_blocks = self._resolve_deepen_blocks(classification, current_block, user_message)
+            created_blocks = self._create_child_blocks(current_block, new_blocks)
+            target_block = created_blocks[0]
+            self.graph.current_block_id = target_block.block_id
+
+        elif classification.action == "tangent":
+            # Start a new graph with this message as the root block
+            self.graph = ConversationGraph()
+            root_block = create_root_block(self.llm, user_message)
+            self.graph.add_block(root_block)
+            self.graph.current_block_id = root_block.block_id
+            self.mindmap.add_graph(self.graph)
+            target_block = root_block
+
+        elif classification.action == "new_child":
             # Create new block(s)
             new_blocks = classification.new_blocks or []
             if not new_blocks and (classification.new_block_title or classification.new_block_intent):
@@ -125,18 +142,7 @@ class ConversationManager:
             if not new_blocks:
                 new_blocks = [{"title": "Untitled", "intent": "New discussion"}]
 
-            created_blocks = []
-            for block_seed in new_blocks:
-                new_block = create_child_block(
-                    self.llm,
-                    current_block,
-                    block_seed.get("title", "Untitled"),
-                    block_seed.get("intent", "New discussion"),
-                )
-                self.graph.add_block(new_block)
-                created_blocks.append(new_block)
-                print(f"  [NEW] Created new block: '{new_block.title}'")
-
+            created_blocks = self._create_child_blocks(current_block, new_blocks)
             target_block = created_blocks[0]
             self.graph.current_block_id = target_block.block_id
         
@@ -202,6 +208,67 @@ class ConversationManager:
         response = self.llm.call(prompt)
         return response
 
+    def _resolve_deepen_blocks(
+        self,
+        classification: "BlockClassification",
+        current_block: Block,
+        user_message: str,
+    ) -> list[dict[str, str]]:
+        new_blocks = classification.new_blocks or []
+        if new_blocks:
+            return new_blocks
+
+        if classification.new_block_title or classification.new_block_intent:
+            return [{
+                "title": classification.new_block_title or "Untitled",
+                "intent": classification.new_block_intent or "New discussion",
+            }]
+
+        prompt = prompts.prompt_classify_intent_shift(
+            current_block.title,
+            current_block.intent,
+            current_block.summary or "(block just started)",
+            "(context omitted)",
+            "(context omitted)",
+            user_message,
+        )
+        try:
+            response_json = self.llm.call_json(prompt)
+            for item in response_json.get("new_blocks", []) or []:
+                if not isinstance(item, dict):
+                    continue
+                title = item.get("title")
+                intent = item.get("intent")
+                if title or intent:
+                    new_blocks.append({
+                        "title": title or "Untitled",
+                        "intent": intent or "New discussion",
+                    })
+        except Exception as exc:
+            print(f"  [WARN] Could not expand deepen blocks: {exc}")
+
+        if not new_blocks:
+            new_blocks = [{
+                "title": _make_deepen_title(current_block.title, user_message),
+                "intent": f"Explore details of {current_block.intent}: {user_message}",
+            }]
+
+        return new_blocks
+
+    def _create_child_blocks(self, parent_block: Block, new_blocks: list[dict[str, str]]) -> list[Block]:
+        created_blocks = []
+        for block_seed in new_blocks:
+            new_block = create_child_block(
+                self.llm,
+                parent_block,
+                block_seed.get("title", "Untitled"),
+                block_seed.get("intent", "New discussion"),
+            )
+            self.graph.add_block(new_block)
+            created_blocks.append(new_block)
+            print(f"  [NEW] Created new block: '{new_block.title}'")
+        return created_blocks
+    
     def switch_block(self, block_id: str) -> str:
         """
         Switch to a different block.
@@ -284,3 +351,24 @@ class ConversationManager:
         if self.graph.root_block_id in self.graph.blocks:
             title = self.graph.blocks[self.graph.root_block_id].title
         return f"\n[GRAPH] Switched to: {title}\nGraph ID: {graph_id}"
+    
+def _make_deepen_title(parent_title: str, user_message: str) -> str:
+    cleaned_title = re.sub(r"^(deep dive|deepen|details)\s*[:\-]\s*", "", parent_title, flags=re.I).strip()
+    cleaned_title = cleaned_title or "Details"
+    snippet = _summarize_message_fragment(user_message)
+    if snippet:
+        return f"{cleaned_title} — {snippet}"
+    return f"{cleaned_title} (details)"
+
+
+def _summarize_message_fragment(message: str, max_words: int = 8, max_chars: int = 60) -> str:
+    if not message:
+        return ""
+    normalized = " ".join(message.strip().split())
+    if not normalized:
+        return ""
+    words = normalized.split()
+    truncated = " ".join(words[:max_words])
+    if len(truncated) > max_chars:
+        truncated = truncated[:max_chars].rstrip()
+    return truncated

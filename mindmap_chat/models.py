@@ -153,6 +153,14 @@ class ConversationGraph:
                 self.messages.pop(message_id, None)
             del self.blocks[block_id]
 
+    def rebuild_children(self) -> None:
+        """Rebuild children lists from parent_block_id references."""
+        for block in self.blocks.values():
+            block.children = []
+        for block_id, block in self.blocks.items():
+            if block.parent_block_id and block.parent_block_id in self.blocks:
+                self.blocks[block.parent_block_id].add_child(block_id)
+
     def to_d3_graph(self) -> Dict[str, Any]:
         """
         Convert graph to D3.js-friendly format with relation metadata and colors.
