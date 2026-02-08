@@ -8,83 +8,74 @@ const handle1 = document.getElementById('handle1');
 const handle2 = document.getElementById('handle2');
 const contentWrapper = document.querySelector('.content-wrapper');
 
-// Dummy mindmap data structures (simulating conversation graph)
-const mindmapData = {
-    1: { // Machine Learning
-        nodes: [
-            { id: 'ml-root', label: 'Machine Learning', type: 'root' },
-            { id: 'ml-supervised', label: 'Supervised Learning', type: 'child' },
-            { id: 'ml-unsupervised', label: 'Unsupervised Learning', type: 'child' },
-            { id: 'ml-regression', label: 'Regression', type: 'grandchild' },
-            { id: 'ml-classification', label: 'Classification', type: 'grandchild' },
-            { id: 'ml-clustering', label: 'Clustering', type: 'grandchild' }
-        ],
-        links: [
-            { source: 'ml-root', target: 'ml-supervised' },
-            { source: 'ml-root', target: 'ml-unsupervised' },
-            { source: 'ml-supervised', target: 'ml-regression' },
-            { source: 'ml-supervised', target: 'ml-classification' },
-            { source: 'ml-unsupervised', target: 'ml-clustering' }
-        ]
-    },
-    2: { // Web Development
-        nodes: [
-            { id: 'web-root', label: 'Web Development', type: 'root' },
-            { id: 'web-frontend', label: 'Frontend', type: 'child' },
-            { id: 'web-backend', label: 'Backend', type: 'child' },
-            { id: 'web-react', label: 'React', type: 'grandchild' },
-            { id: 'web-vue', label: 'Vue.js', type: 'grandchild' },
-            { id: 'web-flask', label: 'Flask', type: 'grandchild' }
-        ],
-        links: [
-            { source: 'web-root', target: 'web-frontend' },
-            { source: 'web-root', target: 'web-backend' },
-            { source: 'web-frontend', target: 'web-react' },
-            { source: 'web-frontend', target: 'web-vue' },
-            { source: 'web-backend', target: 'web-flask' }
-        ]
-    },
-    3: { // Python Tips
-        nodes: [
-            { id: 'py-root', label: 'Python Tips', type: 'root' },
-            { id: 'py-syntax', label: 'Syntax', type: 'child' },
-            { id: 'py-libs', label: 'Libraries', type: 'child' },
-            { id: 'py-comprehensions', label: 'List Comprehensions', type: 'grandchild' }
-        ],
-        links: [
-            { source: 'py-root', target: 'py-syntax' },
-            { source: 'py-root', target: 'py-libs' },
-            { source: 'py-syntax', target: 'py-comprehensions' }
-        ]
-    },
-    4: { // AI Ethics
-        nodes: [
-            { id: 'ethics-root', label: 'AI Ethics', type: 'root' },
-            { id: 'ethics-bias', label: 'Bias & Fairness', type: 'child' },
-            { id: 'ethics-privacy', label: 'Privacy', type: 'child' }
-        ],
-        links: [
-            { source: 'ethics-root', target: 'ethics-bias' },
-            { source: 'ethics-root', target: 'ethics-privacy' }
-        ]
-    },
-    5: { // Cloud Computing
-        nodes: [
-            { id: 'cloud-root', label: 'Cloud Computing', type: 'root' },
-            { id: 'cloud-aws', label: 'AWS', type: 'child' },
-            { id: 'cloud-azure', label: 'Azure', type: 'child' },
-            { id: 'cloud-gcp', label: 'GCP', type: 'child' }
-        ],
-        links: [
-            { source: 'cloud-root', target: 'cloud-aws' },
-            { source: 'cloud-root', target: 'cloud-azure' },
-            { source: 'cloud-root', target: 'cloud-gcp' }
-        ]
-    }
-};
-
-let currentMindmapId = 1;
+// Track current state
+let currentMindmapId = null;
+let currentBlockId = null;
+let currentGraphId = null;
+let allMindmaps = [];
+let currentGraphData = null;
 let simulation = null;
+
+// API Functions
+async function fetchMindmaps() {
+    try {
+        const response = await fetch('/api/mindmaps');
+        if (!response.ok) throw new Error('Failed to fetch mindmaps');
+        const data = await response.json();
+        return data.mindmaps;
+    } catch (error) {
+        console.error('Error fetching mindmaps:', error);
+        return [];
+    }
+}
+
+async function fetchGraphData(graphId) {
+    try {
+        const response = await fetch(`/api/mindmaps/${graphId}/graph`);
+        if (!response.ok) throw new Error('Failed to fetch graph');
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching graph:', error);
+        return null;
+    }
+}
+
+async function fetchBlockMessages(blockId) {
+    try {
+        const response = await fetch(`/api/blocks/${blockId}/messages`);
+        if (!response.ok) throw new Error('Failed to fetch messages');
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching messages:', error);
+        return null;
+    }
+}
+
+async function sendMessageToBlock(blockId, content) {
+    try {
+        const response = await fetch(`/api/blocks/${blockId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+        });
+        if (!response.ok) throw new Error('Failed to send message');
+        return await response.json();
+    } catch (error) {
+        console.error('Error sending message:', error);
+        return null;
+    }
+}
+
+async function switchBlock(blockId) {
+    try {
+        const response = await fetch(`/api/blocks/${blockId}/switch`, { method: 'POST' });
+        if (!response.ok) throw new Error('Failed to switch block');
+        return await response.json();
+    } catch (error) {
+        console.error('Error switching block:', error);
+        return null;
+    }
+}
 
 function startResize(e, handle) {
     isResizing = true;
@@ -133,18 +124,35 @@ handle1.addEventListener('mousedown', (e) => startResize(e, handle1));
 handle2.addEventListener('mousedown', (e) => startResize(e, handle2));
 
 // Mindmap selection
-function selectMindmap(element, title, id) {
+async function selectMindmap(element, graphId) {
     document.querySelectorAll('.mindmap-item').forEach(item => {
         item.classList.remove('active');
     });
-    element.classList.add('active');
-    document.getElementById('mindmapTitle').textContent = title;
-    currentMindmapId = id;
-    drawMindmap(id);
+    if (element) element.classList.add('active');
+    
+    currentGraphId = graphId;
+    currentMindmapId = graphId;
+    
+    // Fetch graph data from API
+    const graphData = await fetchGraphData(graphId);
+    if (graphData) {
+        currentGraphData = graphData;
+        const rootBlock = graphData.nodes.find(n => n.id === graphData.root_block_id);
+        if (rootBlock) {
+            document.getElementById('mindmapTitle').textContent = rootBlock.label;
+            currentBlockId = rootBlock.id;  // Set current block to root
+        }
+        drawMindmap(graphData);
+        
+        // Load initial block messages
+        if (graphData.root_block_id) {
+            await loadBlockMessages(graphData.root_block_id);
+        }
+    }
 }
 
-// Draw mindmap using D3.js force-directed graph
-function drawMindmap(mindmapId) {
+// Draw mindmap using D3.js force-directed graph with API data
+function drawMindmap(graphData) {
     const svg = d3.select('#mindmapSvg');
     svg.selectAll('*').remove(); // Clear previous graph
     
@@ -152,29 +160,32 @@ function drawMindmap(mindmapId) {
     const width = container.clientWidth;
     const height = container.clientHeight;
     
-    const data = mindmapData[mindmapId];
-    if (!data) return;
+    if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
+        console.warn('No graph data to display');
+        return;
+    }
     
     // Create force simulation
-    simulation = d3.forceSimulation(data.nodes)
-        .force('link', d3.forceLink(data.links).id(d => d.id).distance(100))
+    simulation = d3.forceSimulation(graphData.nodes)
+        .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(100))
         .force('charge', d3.forceManyBody().strength(-300))
         .force('center', d3.forceCenter(width / 2, height / 2))
         .force('collision', d3.forceCollide().radius(50));
     
-    // Create links
+    // Create links with relation-based coloring
     const link = svg.append('g')
         .selectAll('line')
-        .data(data.links)
+        .data(graphData.links)
         .enter().append('line')
-        .attr('stroke', '#999')
-        .attr('stroke-width', 2)
-        .attr('stroke-opacity', 0.6);
+        .attr('stroke', d => d.color || '#999')
+        .attr('stroke-width', d => d.strokeWidth || 2)
+        .attr('stroke-opacity', 0.7)
+        .attr('title', d => `${d.relation} (${(d.confidence * 100).toFixed(0)}%)`);
     
     // Create nodes
     const node = svg.append('g')
         .selectAll('g')
-        .data(data.nodes)
+        .data(graphData.nodes)
         .enter().append('g')
         .call(d3.drag()
             .on('start', dragstarted)
@@ -183,23 +194,32 @@ function drawMindmap(mindmapId) {
     
     // Add circles for nodes
     node.append('circle')
-        .attr('r', d => d.type === 'root' ? 30 : d.type === 'child' ? 20 : 15)
-        .attr('fill', d => {
-            if (d.type === 'root') return '#0d6efd';
-            if (d.type === 'child') return '#6610f2';
-            return '#6c757d';
-        })
+        .attr('r', d => d.id === graphData.root_block_id ? 30 : 20)
+        .attr('fill', d => d.is_current ? '#FF6B6B' : (d.id === graphData.root_block_id ? '#0d6efd' : '#6610f2'))
         .attr('stroke', '#fff')
-        .attr('stroke-width', 2);
+        .attr('stroke-width', 2)
+        .style('cursor', 'pointer')
+        .on('click', async (event, d) => {
+            // Switch to this block and load its messages
+            await switchBlock(d.id);
+            await loadBlockMessages(d.id);
+            
+            // Update current block highlighting
+            d3.selectAll('circle').attr('fill', node_d => 
+                node_d.id === d.id ? '#FF6B6B' : (node_d.id === graphData.root_block_id ? '#0d6efd' : '#6610f2')
+            );
+            currentBlockId = d.id;
+        });
     
     // Add labels
     node.append('text')
         .text(d => d.label)
         .attr('text-anchor', 'middle')
-        .attr('dy', d => d.type === 'root' ? 45 : d.type === 'child' ? 35 : 30)
-        .attr('font-size', d => d.type === 'root' ? '14px' : '12px')
-        .attr('font-weight', d => d.type === 'root' ? 'bold' : 'normal')
-        .attr('fill', '#333');
+        .attr('dy', '.35em')
+        .attr('font-size', d => d.id === graphData.root_block_id ? '14px' : '12px')
+        .attr('font-weight', d => d.id === graphData.root_block_id ? 'bold' : 'normal')
+        .attr('fill', '#333')
+        .style('pointer-events', 'none');
     
     // Update positions on simulation tick
     simulation.on('tick', () => {
@@ -232,16 +252,151 @@ function drawMindmap(mindmapId) {
 }
 
 // Initialize mindmap on page load
-window.addEventListener('load', () => {
-    drawMindmap(currentMindmapId);
+window.addEventListener('load', async () => {
+    // Load mindmaps from API
+    const mindmaps = await fetchMindmaps();
+    allMindmaps = mindmaps;
+    
+    // Populate mindmap list
+    const mindmapList = document.querySelector('.mindmap-list');
+    mindmapList.innerHTML = '';
+    
+    if (mindmaps.length === 0) {
+        // Show empty state with instruction to create new mindmap
+        document.getElementById('mindmapTitle').textContent = 'Graph';
+        const svg = d3.select('#mindmapSvg');
+        svg.selectAll('*').remove();
+        svg.append('text')
+            .attr('x', '50%')
+            .attr('y', '50%')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.3em')
+            .attr('fill', '#999')
+            .attr('font-size', '16px')
+            .text('No mindmaps. Type "/new" to create one.');
+        
+        // Show placeholder in right panel
+        const rightHeader = document.querySelector('.right-panel-header');
+        rightHeader.innerHTML = '<h3>Ready to chat</h3>';
+        const chatMessages = document.getElementById('chatMessages');
+        chatMessages.innerHTML = '<div style="color: #999; text-align: center; margin-top: 20px;">Create a mindmap with /new to start</div>';
+        return;
+    }
+    
+    // Populate mindmap list
+    mindmaps.forEach((mindmap, index) => {
+        const li = document.createElement('li');
+        li.className = 'mindmap-item' + (mindmap.is_current ? ' active' : '');
+        li.innerHTML = `
+            <span class="mindmap-title">${mindmap.title}</span>
+            <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
+        `;
+        li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
+        mindmapList.appendChild(li);
+        
+        if (index === 0 || mindmap.is_current) {
+            selectMindmap(li, mindmap.graph_id);
+        }
+    });
 });
 
+// Load block messages and display in right panel
+async function loadBlockMessages(blockId) {
+    const blockData = await fetchBlockMessages(blockId);
+    if (!blockData) return;
+    
+    currentBlockId = blockId;
+    
+    // Update right panel header
+    const rightHeader = document.querySelector('.right-panel-header');
+    rightHeader.innerHTML = `<h3>${blockData.title}</h3><p style="font-size: 12px; color: #666;">${blockData.intent || 'No intent'}</p>`;
+    
+    // Clear and populate messages
+    const chatMessages = document.getElementById('chatMessages');
+    chatMessages.innerHTML = '';
+    
+    blockData.messages.forEach(msg => {
+        const wrapper = document.createElement('div');
+        wrapper.className = `chat-message-wrapper ${msg.role}`;
+        const timestamp = new Date(msg.timestamp * 1000).toLocaleTimeString();
+        wrapper.innerHTML = `
+            <div class="chat-message">
+                <div class="chat-bubble">${msg.content}</div>
+                <div class="chat-timestamp">${timestamp}</div>
+            </div>
+        `;
+        chatMessages.appendChild(wrapper);
+    });
+    
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
 // Chat functionality
-function sendMessage() {
+async function sendMessage() {
     const input = document.getElementById('messageInput');
     const message = input.value.trim();
 
     if (!message) return;
+
+    // Check for /new command
+    if (message === '/new') {
+        input.value = '';
+        autoResizeTextarea();
+        
+        // Create new mindmap
+        try {
+            const response = await fetch('/api/mindmaps/new', { method: 'POST' });
+            if (!response.ok) throw new Error('Failed to create mindmap');
+            
+            const newMindmap = await response.json();
+            
+            // Refresh mindmap list
+            const mindmaps = await fetchMindmaps();
+            allMindmaps = mindmaps;
+            
+            const mindmapList = document.querySelector('.mindmap-list');
+            mindmapList.innerHTML = '';
+            
+            mindmaps.forEach((mindmap, index) => {
+                const li = document.createElement('li');
+                li.className = 'mindmap-item' + (mindmap.is_current ? ' active' : '');
+                li.innerHTML = `
+                    <span class="mindmap-title">${mindmap.title}</span>
+                    <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
+                `;
+                li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
+                mindmapList.appendChild(li);
+            });
+            
+            // Select the new mindmap
+            const firstItem = mindmapList.querySelector('.mindmap-item');
+            if (firstItem) {
+                await selectMindmap(firstItem, newMindmap.graph_id);
+            }
+            
+            // Show success message
+            const chatMessages = document.getElementById('chatMessages');
+            const sysWrapper = document.createElement('div');
+            sysWrapper.className = 'chat-message-wrapper system';
+            sysWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble" style="background-color: #e8f5e9; color: #2e7d32;">✓ New mindmap created: "${newMindmap.title}"</div></div>`;
+            chatMessages.appendChild(sysWrapper);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        } catch (error) {
+            console.error('Error creating mindmap:', error);
+            const chatMessages = document.getElementById('chatMessages');
+            const errWrapper = document.createElement('div');
+            errWrapper.className = 'chat-message-wrapper system';
+            errWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble" style="background-color: #ffebee; color: #c62828;">✗ Error creating mindmap</div></div>`;
+            chatMessages.appendChild(errWrapper);
+        }
+        return;
+    }
+
+    // Regular message - require a mindmap to exist
+    if (!currentBlockId) {
+        alert('Please create a mindmap with /new or select one from the list');
+        return;
+    }
 
     const chatMessages = document.getElementById('chatMessages');
 
@@ -252,15 +407,36 @@ function sendMessage() {
     chatMessages.appendChild(userWrapper);
 
     input.value = '';
+    autoResizeTextarea();
 
-    // Simulate bot response
-    setTimeout(() => {
-        const botWrapper = document.createElement('div');
-        botWrapper.className = 'chat-message-wrapper bot';
-        botWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</div><div class="chat-timestamp">Just now</div></div>`;
-        chatMessages.appendChild(botWrapper);
+    // Send to API
+    const result = await sendMessageToBlock(currentBlockId, message);
+    
+    if (result && result.messages) {
+        // Show loading indicator
+        const loadingWrapper = document.createElement('div');
+        loadingWrapper.className = 'chat-message-wrapper bot';
+        loadingWrapper.id = 'loading-message';
+        loadingWrapper.innerHTML = `<div class="chat-message"><div class="chat-bubble">thinking...</div></div>`;
+        chatMessages.appendChild(loadingWrapper);
         chatMessages.scrollTop = chatMessages.scrollHeight;
-    }, 500);
+        
+        // Replace with actual response (already in result.messages)
+        setTimeout(() => {
+            // Load messages again to get latest
+            loadBlockMessages(currentBlockId);
+            
+            // Refresh graph data to show any updates
+            if (currentGraphId) {
+                fetchGraphData(currentGraphId).then(graphData => {
+                    if (graphData) {
+                        currentGraphData = graphData;
+                        drawMindmap(graphData);
+                    }
+                });
+            }
+        }, 500);
+    }
 
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
@@ -283,51 +459,45 @@ messageInput.addEventListener('keypress', (e) => {
     }
 });
 
-// Add mindmap function
-function addMindmap() {
-    const mindmapName = prompt('Enter the name for the new mindmap:');
-    if (!mindmapName || mindmapName.trim() === '') return;
-
-    const mindmapList = document.querySelector('.mindmap-list');
-    const newId = Math.max(...Object.keys(mindmapData).map(Number)) + 1;
-    
-    // Add to data
-    mindmapData[newId] = {
-        nodes: [
-            { id: `mm${newId}-root`, label: mindmapName, type: 'root' }
-        ],
-        links: []
-    };
-
-    // Create new list item
-    const newItem = document.createElement('li');
-    newItem.className = 'mindmap-item';
-    newItem.innerHTML = `
-        <span class="mindmap-title">${mindmapName}</span>
-        <button class="mindmap-delete-btn" onclick="deleteMindmap(event, ${newId})">×</button>
-    `;
-    newItem.onclick = function() { selectMindmap(this, mindmapName, newId); };
-    mindmapList.appendChild(newItem);
+// Add mindmap function - creates new mindmap
+async function addMindmap() {
+    try {
+        const response = await fetch('/api/mindmaps/new', { method: 'POST' });
+        if (!response.ok) throw new Error('Failed to create mindmap');
+        
+        const newMindmap = await response.json();
+        
+        // Refresh mindmap list
+        const mindmaps = await fetchMindmaps();
+        allMindmaps = mindmaps;
+        
+        const mindmapList = document.querySelector('.mindmap-list');
+        mindmapList.innerHTML = '';
+        
+        mindmaps.forEach((mindmap) => {
+            const li = document.createElement('li');
+            li.className = 'mindmap-item' + (mindmap.is_current ? ' active' : '');
+            li.innerHTML = `
+                <span class="mindmap-title">${mindmap.title}</span>
+                <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
+            `;
+            li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
+            mindmapList.appendChild(li);
+        });
+        
+        // Select the new mindmap
+        const firstItem = mindmapList.querySelector('.mindmap-item');
+        if (firstItem) {
+            await selectMindmap(firstItem, newMindmap.graph_id);
+        }
+    } catch (error) {
+        console.error('Error creating mindmap:', error);
+        alert('Failed to create new mindmap');
+    }
 }
 
-// Delete mindmap function
-function deleteMindmap(event, mindmapId) {
+// Delete mindmap function (not implemented)
+function deleteMindmap(event, graphId) {
     event.stopPropagation();
-    
-    if (confirm('Are you sure you want to delete this mindmap?')) {
-        // Remove from data
-        delete mindmapData[mindmapId];
-        
-        // Remove from DOM
-        const item = event.target.closest('.mindmap-item');
-        item.remove();
-        
-        // If deleted the current mindmap, select the first available
-        if (currentMindmapId === mindmapId) {
-            const firstItem = document.querySelector('.mindmap-item');
-            if (firstItem) {
-                firstItem.click();
-            }
-        }
-    }
+    alert('Mindmap deletion is not yet implemented. Use the CLI to manage mindmaps.');
 }

@@ -27,7 +27,8 @@ Set-Location $appDir
 $venvPath = Join-Path $repoRoot ".venv"
 if (Test-Path $venvPath) {
     Write-Host "Activating virtual environment..." -ForegroundColor Cyan
-    & (Join-Path $venvPath "Scripts" "Activate.ps1")
+    $activateScript = Join-Path (Join-Path $venvPath "Scripts") "Activate.ps1"
+    & $activateScript
 } else {
     Write-Host "Warning: Virtual environment not found at $venvPath" -ForegroundColor Yellow
 }

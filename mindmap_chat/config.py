@@ -5,6 +5,13 @@ Centralized place for API keys, model names, thresholds.
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load .env from mindmap_chat folder
+env_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 
 @dataclass
@@ -19,7 +26,7 @@ class GeminiConfig:
 @dataclass
 class EmbeddingConfig:
     """Embedding model configuration."""
-    model: str = "all-MiniLM-L6-v2"  # Free, local, lightweight
+    model: str = "gemini-embedding-001"  # Free, local, lightweight
     embedding_dim: int = 384
 
 

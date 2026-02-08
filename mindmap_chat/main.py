@@ -19,6 +19,7 @@ Commands:
   /new          Start a new conversation
   /map          View the mindmap
   /blocks       List all blocks
+  /view <id>    Show messages for a block
   /switch <id>  Switch to a block
   /delete <id>  Delete a block
   /graphs       List all graphs
@@ -122,6 +123,23 @@ def main():
                     manager.mindmap = storage.load()
                     manager.graph = manager.mindmap.get_current_graph()
                     print("[OK] Cleared")
+
+                elif cmd == "/view":
+                    try:
+                        block_id = user_input.split()[1]
+                        if not manager.graph or block_id not in manager.graph.blocks:
+                            print("Block not found")
+                            continue
+                        messages = manager.graph.get_block_messages(block_id)
+                        if not messages:
+                            print("(no messages in this block)")
+                            continue
+                        print(f"\n[MESSAGES] Block: {manager.graph.blocks[block_id].title}\n")
+                        for m in messages:
+                            ts = m.timestamp
+                            print(f"- [{m.role}] {m.content} ({ts})")
+                    except IndexError:
+                        print("Usage: /view <block_id>")
                 
                 elif cmd == "/exit":
                     print("Goodbye!")

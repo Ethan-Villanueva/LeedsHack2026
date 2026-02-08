@@ -153,6 +153,75 @@ class ConversationGraph:
                 self.messages.pop(message_id, None)
             del self.blocks[block_id]
 
+    def to_d3_graph(self) -> Dict[str, Any]:
+        """
+        Convert graph to D3.js-friendly format with relation metadata and colors.
+        
+        Returns:
+            Dict with 'nodes' and 'links' for D3 visualization
+        """
+        # Relation type to color mapping
+        relation_colors = {
+            "continue": "#4CAF50",      # Green (same topic)
+            "deepen": "#66BB6A",         # Light green (deeper in same topic)
+            "child": "#2196F3",          # Blue (new subtopic)
+            "sibling": "#FF9800",        # Orange (related sibling)
+            "tangent": "#F44336",        # Red (unrelated tangent)
+        }
+        
+        # Relation type to stroke width
+        relation_weights = {
+            "continue": 3,
+            "deepen": 2.5,
+            "child": 2,
+            "sibling": 1.5,
+            "tangent": 1,
+        }
+        
+        nodes = []
+        links = []
+        
+        # Build nodes from blocks
+        for block_id, block in self.blocks.items():
+            nodes.append({
+                "id": block_id,
+                "label": block.title or f"Block {block_id[:8]}",
+                "intent": block.intent,
+                "summary": block.summary,
+                "key_points": block.key_points,
+                "open_questions": block.open_questions,
+                "message_count": len(block.conversation_refs),
+                "is_current": block_id == self.current_block_id,
+            })
+        
+        # Build links from parent-child relationships
+        # Infer relation type from metadata (default to "child")
+        for block_id, block in self.blocks.items():
+            if block.parent_block_id:
+                # Default to "child" relation with 0.8 confidence
+                relation = "child"
+                confidence = 0.8
+                
+                color = relation_colors.get(relation, relation_colors["child"])
+                weight = relation_weights.get(relation, relation_weights["child"])
+                
+                links.append({
+                    "source": block.parent_block_id,
+                    "target": block_id,
+                    "relation": relation,
+                    "confidence": confidence,
+                    "color": color,
+                    "strokeWidth": weight,
+                })
+        
+        return {
+            "graph_id": self.graph_id,
+            "root_block_id": self.root_block_id,
+            "nodes": nodes,
+            "links": links,
+            "current_block_id": self.current_block_id,
+        }
+
 @dataclass
 class BlockClassification:
     """Output from intent classifier."""
