@@ -116,7 +116,8 @@ def _classify_with_llm(llm_client: LLMClient, current_block: Block,
             confidence=float(response_json.get("confidence", 0.5)),
             reasoning=response_json.get("reasoning", ""),
             new_block_title=response_json.get("new_block_title"),
-            new_block_intent=response_json.get("new_block_intent")
+            new_block_intent=response_json.get("new_block_intent"),
+            new_blocks=new_blocks
         )
     
     except Exception as e:
