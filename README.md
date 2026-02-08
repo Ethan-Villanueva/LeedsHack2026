@@ -1,35 +1,5 @@
 # LeedsHack2026
 
-Genio Challenge
-
-Learning Rebooted
-
-At Genio (formerly Glean) we envision a world where every person has the tools and
-confidence to expand what’s possible through learning. We believe this happens
-when you equip, empower, and encourage learners with courses to develop study
-skills, and tools that put knowledge into action, unlocking better learning.
-Trusted by over 1,000 institutions, Genio Notes makes classroom learning more
-effective for students of all abilities, and is now paired with an engaging course to
-boost study skills. Genio Present helps students gain presentation confidence
-through structured rehearsal, self-reflection, actionable feedback, and visible
-growth.
-
-# LeedsHack2026
-
-Genio Challenge
-
-Learning Rebooted
-
-At Genio (formerly Glean) we envision a world where every person has the tools and
-confidence to expand what's possible through learning. We believe this happens
-when you equip, empower, and encourage learners with courses to develop study
-skills, and tools that put knowledge into action, unlocking better learning.
-Trusted by over 1,000 institutions, Genio Notes makes classroom learning more
-effective for students of all abilities, and is now paired with an engaging course to
-boost study skills. Genio Present helps students gain presentation confidence
-through structured rehearsal, self-reflection, actionable feedback, and visible
-growth.
-
 ## Background information
 Task
 What systems could be rebooted to unlock better learning?
