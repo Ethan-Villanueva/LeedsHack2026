@@ -51,6 +51,13 @@ async function fetchBlockMessages(blockId) {
     }
 }
 
+function renderMessageContent(content) {
+    if (window.marked) {
+        return window.marked.parse(content);
+    }
+    return content;
+}
+
 // Generic chat API using ConversationManager (mirrors CLI logic)
 async function chatWithAssistant(content) {
     try {
@@ -63,6 +70,22 @@ async function chatWithAssistant(content) {
         return await response.json();
     } catch (error) {
         console.error('Error in chatWithAssistant:', error);
+        return null;
+    }
+}
+
+// Create a new mindmap via dedicated endpoint
+async function createMindmap(topic) {
+    try {
+        const response = await fetch('/api/mindmaps/new', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ topic })
+        });
+        if (!response.ok) throw new Error('Failed to create mindmap');
+        return await response.json();
+    } catch (error) {
+        console.error('Error in createMindmap:', error);
         return null;
     }
 }
@@ -276,6 +299,7 @@ window.addEventListener('load', async () => {
     mindmaps.forEach((mindmap, index) => {
         const li = document.createElement('li');
         li.className = 'mindmap-item' + (mindmap.is_current ? ' active' : '');
+        li.dataset.graphId = mindmap.graph_id;
         li.innerHTML = `
             <span class="mindmap-title">${mindmap.title}</span>
             <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
@@ -305,12 +329,13 @@ async function loadBlockMessages(blockId) {
     chatMessages.innerHTML = '';
     
     blockData.messages.forEach(msg => {
+        const roleClass = msg.role === 'assistant' ? 'bot' : msg.role;
         const wrapper = document.createElement('div');
-        wrapper.className = `chat-message-wrapper ${msg.role}`;
+        wrapper.className = `chat-message-wrapper ${roleClass}`;
         const timestamp = new Date(msg.timestamp * 1000).toLocaleTimeString();
         wrapper.innerHTML = `
             <div class="chat-message">
-                <div class="chat-bubble">${msg.content}</div>
+                <div class="chat-bubble">${renderMessageContent(msg.content)}</div>
                 <div class="chat-timestamp">${timestamp}</div>
             </div>
         `;
@@ -345,13 +370,50 @@ async function sendMessage() {
     input.value = '';
     autoResizeTextarea();
 
+    // Show thinking indicator while waiting for the assistant response.
+    const thinkingWrapper = document.createElement('div');
+    thinkingWrapper.className = 'chat-message-wrapper bot thinking';
+    thinkingWrapper.innerHTML = `
+        <div class="chat-message">
+            <div class="chat-bubble">
+                <span class="thinking-dots" aria-label="AI is thinking">
+                    <span></span><span></span><span></span>
+                </span>
+            </div>
+            <div class="chat-timestamp">Thinking...</div>
+        </div>
+    `;
+    chatMessages.appendChild(thinkingWrapper);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
     const result = await chatWithAssistant(message);
-    if (!result) return;
+    if (!result) {
+        thinkingWrapper.querySelector('.chat-bubble').textContent = 'Sorry, something went wrong.';
+        return;
+    }
 
     // Update current graph and block from response
     currentGraphId = result.graph_id;
     currentMindmapId = result.graph_id;
     currentBlockId = result.current_block_id;
+
+    // Refresh mindmap list and update active selection
+    const mindmaps = await fetchMindmaps();
+    allMindmaps = mindmaps;
+    const mindmapList = document.querySelector('.mindmap-list');
+    mindmapList.innerHTML = '';
+
+    mindmaps.forEach((mindmap) => {
+        const li = document.createElement('li');
+        li.className = 'mindmap-item' + (mindmap.graph_id === currentGraphId ? ' active' : '');
+        li.dataset.graphId = mindmap.graph_id;
+        li.innerHTML = `
+            <span class="mindmap-title">${mindmap.title}</span>
+            <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
+        `;
+        li.onclick = function() { selectMindmap(this, mindmap.graph_id); };
+        mindmapList.appendChild(li);
+    });
 
     // Redraw mindmap from returned graph
     if (result.graph) {
@@ -362,12 +424,13 @@ async function sendMessage() {
     // Replace chat panel with full message history for current block
     chatMessages.innerHTML = '';
     result.messages.forEach(msg => {
+        const roleClass = msg.role === 'assistant' ? 'bot' : msg.role;
         const wrapper = document.createElement('div');
-        wrapper.className = `chat-message-wrapper ${msg.role}`;
+        wrapper.className = `chat-message-wrapper ${roleClass}`;
         const timestamp = new Date(msg.timestamp * 1000).toLocaleTimeString();
         wrapper.innerHTML = `
             <div class="chat-message">
-                <div class="chat-bubble">${msg.content}</div>
+                <div class="chat-bubble">${renderMessageContent(msg.content)}</div>
                 <div class="chat-timestamp">${timestamp}</div>
             </div>
         `;
@@ -400,7 +463,7 @@ async function addMindmap() {
     const topic = prompt('What would you like to discuss?');
     if (!topic) return;  // User cancelled
 
-    const result = await chatWithAssistant(topic);
+    const result = await createMindmap(topic);
     if (!result) return;
 
     // Update current graph and block
@@ -418,6 +481,7 @@ async function addMindmap() {
     mindmaps.forEach((mindmap) => {
         const li = document.createElement('li');
         li.className = 'mindmap-item' + (mindmap.is_current ? ' active' : '');
+        li.dataset.graphId = mindmap.graph_id;
         li.innerHTML = `
             <span class="mindmap-title">${mindmap.title}</span>
             <button class="mindmap-delete-btn" onclick="deleteMindmap(event, '${mindmap.graph_id}')">x</button>
@@ -426,10 +490,13 @@ async function addMindmap() {
         mindmapList.appendChild(li);
     });
 
-    // Select the new mindmap visually
-    const firstItem = mindmapList.querySelector('.mindmap-item');
-    if (firstItem) {
-        await selectMindmap(firstItem, currentGraphId);
+    // Select the new mindmap visually and refresh middle panel
+    const newItem = Array.from(mindmapList.querySelectorAll('.mindmap-item'))
+        .find(item => item.dataset.graphId === currentGraphId);
+    if (newItem) {
+        await selectMindmap(newItem, currentGraphId);
+    } else {
+        await selectMindmap(mindmapList.querySelector('.mindmap-item'), currentGraphId);
     }
 }
 
